@@ -5,6 +5,7 @@ use nom::{bytes::complete::take, combinator::map, number::complete::le_u32, IRes
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PreviousGtids {
     header: Header,
+    // FIXME this field may be wrong
     gtid_sets: Vec<u8>,
     buf_size: u32,
     checksum: u32,

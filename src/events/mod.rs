@@ -7,6 +7,7 @@ mod anonymous_gtid;
 mod format_desc;
 mod previous_gtids;
 mod query;
+mod table_map;
 
 fn extract_string(input: &[u8]) -> String {
     let null_end = input.iter().position(|&c| c == b'\0').unwrap_or(input.len());
@@ -49,6 +50,7 @@ pub enum Event {
     FormatDesc(format_desc::FormatDesc),
     AnonymousGtid(anonymous_gtid::AnonymousGtid),
     PreviousGtids(previous_gtids::PreviousGtids),
+    TableMap(table_map::TableMap)
 }
 
 impl Event {
@@ -57,6 +59,7 @@ impl Event {
         match header.event_type {
             0x02 => query::parse(input, header),
             0x0f => format_desc::parse(input, header),
+            0x13 => table_map::parse(input, header),
             0x22 => anonymous_gtid::parse(input, header),
             0x23 => previous_gtids::parse(input, header),
             _ => unreachable!(),

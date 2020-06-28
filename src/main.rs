@@ -1,34 +1,33 @@
 #![allow(non_camel_case_types)]
+#![feature(exclusive_range_pattern)]
 
 use events::*;
 use nom::{bytes::complete::tag, IResult};
 
 pub mod events;
+pub mod utils;
 
 fn check_start(i: &[u8]) -> IResult<&[u8], &[u8]> {
     tag([254, 98, 105, 110])(i)
 }
 
 fn main() {
-    // let data = include_bytes!("binlog.bin").clone();
-    // let (input, _) = check_start(&data).unwrap();
-    // let (input, _) = Event::parse(input).unwrap();
-    // let (input, _) = Event::parse(input).unwrap();
-    // let (input, _) = Event::parse(input).unwrap();
-    // let (input, e) = Event::parse(input).unwrap();
-    // println!("{:x?}", e);
+    let data = include_bytes!("binlog.bin").clone();
+    let (input, e) = check_start(&data).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:?}\n", e);
+    let (input, e) = Event::parse(input).unwrap();
+    println!("\n{:#x?}\n", e);
     // println!("{:x?}", input);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_check_binlog() {
-        assert_eq!(
-            check_start(".bin".as_bytes()),
-            Ok(("".as_bytes(), ".bin".as_bytes()))
-        );
-    }
 }
