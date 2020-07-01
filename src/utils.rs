@@ -1,5 +1,5 @@
 use nom::{
-    bytes::complete::take,
+    bytes::complete::{take, take_till},
     combinator::map,
     number::complete::{le_u16, le_u32, le_u64, le_u8},
     IResult,
@@ -39,6 +39,31 @@ pub fn parse_lenenc_str<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
     })(i)
 }
 
-fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
+pub fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
     le_u32(input)
+}
+
+pub fn take_till_term_string(input: &[u8]) -> IResult<&[u8], String> {
+    map(take_till(|c: u8| c == 0x00), |s| {
+        String::from_utf8_lossy(s).to_string()
+    })(input)
+}
+
+/// extract n(n <= len(input)) bytes string
+pub fn extract_string(input: &[u8]) -> String {
+    let null_end = input
+        .iter()
+        .position(|&c| c == b'\0')
+        .unwrap_or(input.len());
+    String::from_utf8_lossy(&input[0..null_end]).to_string()
+}
+
+/// extract len bytes string
+pub fn extract_n_string(input: &[u8], len: usize) -> String {
+    let null_end = input
+        .iter()
+        .position(|&c| c == b'\0')
+        .unwrap_or(input.len());
+    assert_eq!(null_end, len);
+    String::from_utf8_lossy(&input[0..null_end]).to_string()
 }

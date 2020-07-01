@@ -1,5 +1,11 @@
-use super::{Event, Header, extract_string};
-use nom::{number::complete::{le_u32, le_u16, le_u8}, bytes::complete::take, IResult, combinator::map};
+use super::{Event, Header};
+use crate::utils::extract_string;
+use nom::{
+    bytes::complete::take,
+    combinator::map,
+    number::complete::{le_u16, le_u32, le_u8},
+    IResult,
+};
 
 // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L295-L344
 // event_data layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L387-L416

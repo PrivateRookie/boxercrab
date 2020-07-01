@@ -9,11 +9,6 @@ mod previous_gtids;
 mod query;
 mod table_map;
 
-fn extract_string(input: &[u8]) -> String {
-    let null_end = input.iter().position(|&c| c == b'\0').unwrap_or(input.len());
-    String::from_utf8(input[0..null_end].to_vec()).unwrap()
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header {
     pub timestamp: u32,
@@ -50,7 +45,7 @@ pub enum Event {
     FormatDesc(format_desc::FormatDesc),
     AnonymousGtid(anonymous_gtid::AnonymousGtid),
     PreviousGtids(previous_gtids::PreviousGtids),
-    TableMap(table_map::TableMap)
+    TableMap(table_map::TableMap),
 }
 
 impl Event {

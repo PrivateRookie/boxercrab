@@ -1,5 +1,5 @@
-use super::{extract_string, Event, Header};
-use crate::utils::{parse_lenenc_int, parse_lenenc_str};
+use super::{Event, Header};
+use crate::utils::{parse_lenenc_int, parse_lenenc_str, extract_string};
 use nom::{
     bytes::complete::take,
     combinator::map,

@@ -1,11 +1,15 @@
-use super::{extract_string, Event, Header};
+use super::{Event, Header};
+use crate::utils::{extract_n_string, extract_string, pu32, take_till_term_string};
 use nom::{
     bytes::complete::take,
     combinator::map,
-    number::complete::{le_i32, le_u16, le_u32, le_u8},
+    multi::many0,
+    number::complete::{le_u16, le_u32, le_u64, le_u8},
+    sequence::tuple,
     IResult,
 };
 use num_enum::TryFromPrimitive;
+use std::convert::TryFrom;
 
 // doc: https://dev.mysql.com/doc/internals/en/query-event.html
 // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L44-L426
@@ -18,28 +22,30 @@ pub struct Query {
     schema_length: u8, // length of current select schema name
     error_code: u16,
     status_vars_length: u16,
-    status_vars: Vec<u8>,
+    status_vars: Vec<QueryStatusVar>,
     schema: String,
     query: String,
     checksum: u32,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum QueryStatusFlags {
-    Q_FLAGS2_CODE = 0x00,
-    Q_SQL_MODE_CODE = 0x01,
-    Q_CATALOG = 0x02,
-    Q_AUTO_INCREMENT = 0x03,
-    Q_CHARSET_CODE = 0x04,
-    Q_TIME_ZONE_CODE = 0x05,
-    Q_CATALOG_NZ_CODE = 0x06,
-    Q_LC_TIME_NAMES_CODE = 0x07,
-    Q_CHARSET_DATABASE_CODE = 0x08,
-    Q_TABLE_MAP_FOR_UPDATE_CODE = 0x09,
-    Q_MASTER_DATA_WRITTEN_CODE = 0x0a,
-    Q_INVOKERS = 0x0b,
-    Q_UPDATED_DB_NAMES = 0x0c,
-    Q_MICROSECONDS = 0x0d,
+pub enum QueryStatusVar {
+    Q_FLAGS2_CODE(Q_FLAGS2_CODE_VAL),
+    Q_SQL_MODE_CODE(Q_SQL_MODE_CODE_VAL),
+    Q_CATALOG(String),
+    Q_AUTO_INCREMENT(u16, u16),
+    Q_CHARSET_CODE(u16, u16, u16),
+    Q_TIME_ZONE_CODE(String),
+    Q_CATALOG_NZ_CODE(String),
+    Q_LC_TIME_NAMES_CODE(u16),
+    // DOUBT field type may be wrong
+    Q_CHARSET_DATABASE_CODE(u16),
+    Q_TABLE_MAP_FOR_UPDATE_CODE(u64),
+    Q_MASTER_DATA_WRITTEN_CODE(u32),
+    Q_INVOKERS(String, String),
+    Q_UPDATED_DB_NAMES(Vec<String>),
+    // NOTE this field take 3 bytes
+    Q_MICROSECONDS(u32),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, TryFromPrimitive)]
@@ -52,8 +58,8 @@ pub enum Q_FLAGS2_CODE_VAL {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, TryFromPrimitive)]
-#[repr(u32)]
-pub enum Q_SQL_MODE_CODE {
+#[repr(u64)]
+pub enum Q_SQL_MODE_CODE_VAL {
     MODE_REAL_AS_FLOAT = 0x00000001,
     MODE_PIPES_AS_CONCAT = 0x00000002,
     MODE_ANSI_QUOTES = 0x00000004,
@@ -95,8 +101,9 @@ pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, schema_length) = le_u8(i)?;
     let (i, error_code) = le_u16(i)?;
     let (i, status_vars_length) = le_u16(i)?;
-    // TODO parse status_vars
-    let (i, status_vars) = map(take(status_vars_length), |s: &[u8]| s.to_vec())(i)?;
+    let (i, raw_vars) = take(status_vars_length)(i)?;
+    let (remain, status_vars) = many0(parse_status_var)(raw_vars)?;
+    assert_eq!(remain.len(), 0);
     let (i, schema) = map(take(schema_length), |s: &[u8]| {
         String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
     })(i)?;
@@ -133,4 +140,72 @@ pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
             checksum,
         }),
     ))
+}
+
+fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
+    let (i, key) = le_u8(input)?;
+    match key {
+        0x00 => {
+            let (i, code) = le_u32(i)?;
+            let val = match code {
+                0x00004000 => Q_FLAGS2_CODE_VAL::OPTION_AUTO_IS_NULL,
+                0x00080000 => Q_FLAGS2_CODE_VAL::OPTION_NOT_AUTOCOMMIT,
+                0x04000000 => Q_FLAGS2_CODE_VAL::OPTION_NO_FOREIGN_KEY_CHECKS,
+                0x08000000 => Q_FLAGS2_CODE_VAL::OPTION_RELAXED_UNIQUE_CHECKS,
+                _ => unreachable!(),
+            };
+            Ok((i, QueryStatusVar::Q_FLAGS2_CODE(val)))
+        }
+        0x01 => {
+            let (i, code) = le_u64(i)?;
+            let val =
+                Q_SQL_MODE_CODE_VAL::try_from(code).expect(&format!("unexpected code: {}", code));
+            Ok((i, QueryStatusVar::Q_SQL_MODE_CODE(val)))
+        }
+        0x02 => {
+            let (i, len) = le_u8(i)?;
+            let (i, val) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            let (i, term) = le_u8(i)?;
+            assert_eq!(term, 0x00);
+            Ok((i, QueryStatusVar::Q_CATALOG(val)))
+        }
+        0x03 => {
+            let (i, incr) = le_u16(i)?;
+            let (i, offset) = le_u16(i)?;
+            Ok((i, QueryStatusVar::Q_AUTO_INCREMENT(incr, offset)))
+        }
+        0x04 => {
+            let (i, (client, conn, server)) = tuple((le_u16, le_u16, le_u16))(i)?;
+            Ok((i, QueryStatusVar::Q_CHARSET_CODE(client, conn, server)))
+        }
+        0x05 => {
+            let (i, len) = le_u8(i)?;
+            let (i, tz) = map(take(len), |s: &[u8]| extract_string(s))(i)?;
+            Ok((i, QueryStatusVar::Q_TIME_ZONE_CODE(tz)))
+        }
+        0x06 => {
+            let (i, len) = le_u8(i)?;
+            let (i, val) = map(take(len), |s: &[u8]| extract_string(s))(i)?;
+            Ok((i, QueryStatusVar::Q_CATALOG_NZ_CODE(val)))
+        }
+        0x07 => map(le_u16, |v| QueryStatusVar::Q_LC_TIME_NAMES_CODE(v))(i),
+        0x08 => map(le_u16, |v| QueryStatusVar::Q_CHARSET_DATABASE_CODE(v))(i),
+        0x09 => map(le_u64, |v| QueryStatusVar::Q_TABLE_MAP_FOR_UPDATE_CODE(v))(i),
+        0x0a => map(le_u32, |v| QueryStatusVar::Q_MASTER_DATA_WRITTEN_CODE(v))(i),
+        0x0b => {
+            let (i, len) = le_u8(i)?;
+            let (i, user) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            let (i, len) = le_u8(i)?;
+            let (i, host) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            Ok((i, QueryStatusVar::Q_INVOKERS(user, host)))
+        }
+        0x0c => {
+            let (i, count) = le_u8(i)?;
+            let (i, val) = many0(take_till_term_string)(i)?;
+            assert_eq!(val.len(), count as usize);
+            Ok((i, QueryStatusVar::Q_UPDATED_DB_NAMES(val)))
+        }
+        0x0d => map(pu32, |val| QueryStatusVar::Q_MICROSECONDS(val))(i),
+        __ => unreachable!(),
+    }
 }
