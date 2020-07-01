@@ -144,7 +144,7 @@ fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
             let auto_is_null = (code >> 14) % 2 == 1;
             let auto_commit = (code >> 19) % 2 == 0;
             let foreign_key_checks = (code >> 26) % 2 == 0;
-            let unique_checks = (code >> 17) % 2 == 0;
+            let unique_checks = (code >> 27) % 2 == 0;
             Ok((
                 i,
                 QueryStatusVar::Q_FLAGS2_CODE(Q_FLAGS2_CODE_VAL {
