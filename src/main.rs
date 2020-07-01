@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-#![feature(exclusive_range_pattern)]
 
 use events::*;
 use nom::{bytes::complete::tag, IResult};

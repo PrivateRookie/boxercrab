@@ -8,7 +8,7 @@ use nom::{
 // ref: https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], u64> {
     match input[0] {
-        0..0xfb => map(le_u8, |num: u8| num as u64)(input),
+        0..=0xfa => map(le_u8, |num: u8| num as u64)(input),
         0xfb | 0xfc => {
             let (i, _) = take(1usize)(input)?;
             map(le_u16, |num: u16| num as u64)(i)
