@@ -44,9 +44,11 @@ pub fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
 }
 
 pub fn take_till_term_string(input: &[u8]) -> IResult<&[u8], String> {
-    map(take_till(|c: u8| c == 0x00), |s| {
+    let (i, ret) = map(take_till(|c: u8| c == 0x00), |s| {
         String::from_utf8_lossy(s).to_string()
-    })(input)
+    })(input)?;
+    let (i, _) = take(1usize)(i)?;
+    Ok((i, ret))
 }
 
 /// extract n(n <= len(input)) bytes string

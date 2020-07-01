@@ -3,13 +3,11 @@ use crate::utils::{extract_n_string, extract_string, pu32, take_till_term_string
 use nom::{
     bytes::complete::take,
     combinator::map,
-    multi::many0,
+    multi::{many0, many_m_n},
     number::complete::{le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
 };
-use num_enum::TryFromPrimitive;
-use std::convert::TryFrom;
 
 // doc: https://dev.mysql.com/doc/internals/en/query-event.html
 // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L44-L426
@@ -38,7 +36,6 @@ pub enum QueryStatusVar {
     Q_TIME_ZONE_CODE(String),
     Q_CATALOG_NZ_CODE(String),
     Q_LC_TIME_NAMES_CODE(u16),
-    // DOUBT field type may be wrong
     Q_CHARSET_DATABASE_CODE(u16),
     Q_TABLE_MAP_FOR_UPDATE_CODE(u64),
     Q_MASTER_DATA_WRITTEN_CODE(u32),
@@ -48,54 +45,51 @@ pub enum QueryStatusVar {
     Q_MICROSECONDS(u32),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, TryFromPrimitive)]
-#[repr(u32)]
-pub enum Q_FLAGS2_CODE_VAL {
-    OPTION_AUTO_IS_NULL = 0x00004000,
-    OPTION_NOT_AUTOCOMMIT = 0x00080000,
-    OPTION_NO_FOREIGN_KEY_CHECKS = 0x04000000,
-    OPTION_RELAXED_UNIQUE_CHECKS = 0x08000000,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Q_FLAGS2_CODE_VAL {
+    pub auto_is_null: bool,
+    pub auto_commit: bool,
+    pub foreign_key_checks: bool,
+    pub unique_checks: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, TryFromPrimitive)]
-#[repr(u64)]
-pub enum Q_SQL_MODE_CODE_VAL {
-    MODE_REAL_AS_FLOAT = 0x00000001,
-    MODE_PIPES_AS_CONCAT = 0x00000002,
-    MODE_ANSI_QUOTES = 0x00000004,
-    MODE_IGNORE_SPACE = 0x00000008,
-    MODE_NOT_USED = 0x00000010,
-    MODE_ONLY_FULL_GROUP_BY = 0x00000020,
-    MODE_NO_UNSIGNED_SUBTRACTION = 0x00000040,
-    MODE_NO_DIR_IN_CREATE = 0x00000080,
-    MODE_POSTGRESQL = 0x00000100,
-    MODE_ORACLE = 0x00000200,
-    MODE_MSSQL = 0x00000400,
-    MODE_DB2 = 0x00000800,
-    MODE_MAXDB = 0x00001000,
-    MODE_NO_KEY_OPTIONS = 0x00002000,
-    MODE_NO_TABLE_OPTIONS = 0x00004000,
-    MODE_NO_FIELD_OPTIONS = 0x00008000,
-    MODE_MYSQL323 = 0x00010000,
-    MODE_MYSQL40 = 0x00020000,
-    MODE_ANSI = 0x00040000,
-    MODE_NO_AUTO_VALUE_ON_ZERO = 0x00080000,
-    MODE_NO_BACKSLASH_ESCAPES = 0x00100000,
-    MODE_STRICT_TRANS_TABLES = 0x00200000,
-    MODE_STRICT_ALL_TABLES = 0x00400000,
-    MODE_NO_ZERO_IN_DATE = 0x00800000,
-    MODE_NO_ZERO_DATE = 0x01000000,
-    MODE_INVALID_DATES = 0x02000000,
-    MODE_ERROR_FOR_DIVISION_BY_ZERO = 0x04000000,
-    MODE_TRADITIONAL = 0x08000000,
-    MODE_NO_AUTO_CREATE_USER = 0x10000000,
-    MODE_HIGH_NOT_PRECEDENCE = 0x20000000,
-    MODE_NO_ENGINE_SUBSTITUTION = 0x40000000,
-    MODE_PAD_CHAR_TO_FULL_LENGTH = 0x80000000,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Q_SQL_MODE_CODE_VAL {
+    real_as_float: bool,
+    pipes_as_concat: bool,
+    ansi_quotes: bool,
+    ignore_space: bool,
+    not_used: bool,
+    only_full_group_by: bool,
+    no_unsigned_subtraction: bool,
+    no_dir_in_create: bool,
+    postgresql: bool,
+    oracle: bool,
+    mssql: bool,
+    db2: bool,
+    maxdb: bool,
+    no_key_options: bool,
+    no_table_options: bool,
+    no_field_options: bool,
+    mysql323: bool,
+    mysql40: bool,
+    ansi: bool,
+    no_auto_value_on_zero: bool,
+    no_backslash_escapes: bool,
+    strict_trans_tables: bool,
+    strict_all_tables: bool,
+    no_zero_in_date: bool,
+    no_zero_date: bool,
+    invalid_dates: bool,
+    error_for_division_by_zero: bool,
+    traditional: bool,
+    no_auto_create_user: bool,
+    high_not_precedence: bool,
+    no_engine_substitution: bool,
+    pad_char_to_full_length: bool,
 }
 
 pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    println!("{:?}", &header);
     let (i, slave_proxy_id) = le_u32(input)?;
     let (i, execution_time) = le_u32(i)?;
     let (i, schema_length) = le_u8(i)?;
@@ -147,19 +141,56 @@ fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
     match key {
         0x00 => {
             let (i, code) = le_u32(i)?;
-            let val = match code {
-                0x00004000 => Q_FLAGS2_CODE_VAL::OPTION_AUTO_IS_NULL,
-                0x00080000 => Q_FLAGS2_CODE_VAL::OPTION_NOT_AUTOCOMMIT,
-                0x04000000 => Q_FLAGS2_CODE_VAL::OPTION_NO_FOREIGN_KEY_CHECKS,
-                0x08000000 => Q_FLAGS2_CODE_VAL::OPTION_RELAXED_UNIQUE_CHECKS,
-                _ => unreachable!(),
-            };
-            Ok((i, QueryStatusVar::Q_FLAGS2_CODE(val)))
+            let auto_is_null = (code >> 14) % 2 == 1;
+            let auto_commit = (code >> 19) % 2 == 0;
+            let foreign_key_checks = (code >> 26) % 2 == 0;
+            let unique_checks = (code >> 17) % 2 == 0;
+            Ok((
+                i,
+                QueryStatusVar::Q_FLAGS2_CODE(Q_FLAGS2_CODE_VAL {
+                    auto_is_null,
+                    auto_commit,
+                    foreign_key_checks,
+                    unique_checks,
+                }),
+            ))
         }
         0x01 => {
             let (i, code) = le_u64(i)?;
-            let val =
-                Q_SQL_MODE_CODE_VAL::try_from(code).expect(&format!("unexpected code: {}", code));
+            let val = Q_SQL_MODE_CODE_VAL {
+                real_as_float: (code >> 0) % 2 == 1,
+                pipes_as_concat: (code >> 1) % 2 == 1,
+                ansi_quotes: (code >> 2) % 2 == 1,
+                ignore_space: (code >> 3) % 2 == 1,
+                not_used: (code >> 4) % 2 == 1,
+                only_full_group_by: (code >> 5) % 2 == 1,
+                no_unsigned_subtraction: (code >> 6) % 2 == 1,
+                no_dir_in_create: (code >> 7) % 2 == 1,
+                postgresql: (code >> 8) % 2 == 1,
+                oracle: (code >> 9) % 2 == 1,
+                mssql: (code >> 10) % 2 == 1,
+                db2: (code >> 11) % 2 == 1,
+                maxdb: (code >> 12) % 2 == 1,
+                no_key_options: (code >> 13) % 2 == 1,
+                no_table_options: (code >> 14) % 2 == 1,
+                no_field_options: (code >> 15) % 2 == 1,
+                mysql323: (code >> 16) % 2 == 1,
+                mysql40: (code >> 17) % 2 == 1,
+                ansi: (code >> 18) % 2 == 1,
+                no_auto_value_on_zero: (code >> 19) % 2 == 1,
+                no_backslash_escapes: (code >> 20) % 2 == 1,
+                strict_trans_tables: (code >> 21) % 2 == 1,
+                strict_all_tables: (code >> 22) % 2 == 1,
+                no_zero_in_date: (code >> 23) % 2 == 1,
+                no_zero_date: (code >> 24) % 2 == 1,
+                invalid_dates: (code >> 25) % 2 == 1,
+                error_for_division_by_zero: (code >> 26) % 2 == 1,
+                traditional: (code >> 27) % 2 == 1,
+                no_auto_create_user: (code >> 28) % 2 == 1,
+                high_not_precedence: (code >> 29) % 2 == 1,
+                no_engine_substitution: (code >> 30) % 2 == 1,
+                pad_char_to_full_length: (code >> 31) % 2 == 1,
+            };
             Ok((i, QueryStatusVar::Q_SQL_MODE_CODE(val)))
         }
         0x02 => {
@@ -201,8 +232,7 @@ fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
         }
         0x0c => {
             let (i, count) = le_u8(i)?;
-            let (i, val) = many0(take_till_term_string)(i)?;
-            assert_eq!(val.len(), count as usize);
+            let (i, val) = many_m_n(count as usize, count as usize, take_till_term_string)(i)?;
             Ok((i, QueryStatusVar::Q_UPDATED_DB_NAMES(val)))
         }
         0x0d => map(pu32, |val| QueryStatusVar::Q_MICROSECONDS(val))(i),
