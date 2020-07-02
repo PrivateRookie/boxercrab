@@ -1,4 +1,5 @@
 use nom::{
+    bytes::complete::tag,
     number::complete::{le_u16, le_u32, le_u8},
     IResult,
 };
@@ -37,6 +38,14 @@ pub fn parse_header(input: &[u8]) -> IResult<&[u8], Header> {
             flags,
         },
     ))
+}
+
+pub trait Parse<T> {
+    fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], T>;
+}
+
+pub fn check_start(i: &[u8]) -> IResult<&[u8], &[u8]> {
+    tag([254, 98, 105, 110])(i)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

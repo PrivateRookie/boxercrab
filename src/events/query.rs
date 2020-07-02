@@ -1,4 +1,4 @@
-use super::{Event, Header};
+use super::{Event, Header, Parse};
 use crate::utils::{extract_n_string, extract_string, pu32, take_till_term_string};
 use nom::{
     bytes::complete::take,
@@ -24,6 +24,60 @@ pub struct Query {
     schema: String,
     query: String,
     checksum: u32,
+}
+
+impl Parse<Query> for Query {
+    fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Query> {
+        let (i, slave_proxy_id) = le_u32(input)?;
+        let (i, execution_time) = le_u32(i)?;
+        let (i, schema_length) = le_u8(i)?;
+        let (i, error_code) = le_u16(i)?;
+        let (i, status_vars_length) = le_u16(i)?;
+        let (i, raw_vars) = take(status_vars_length)(i)?;
+        let (remain, status_vars) = many0(parse_status_var)(raw_vars)?;
+        assert_eq!(remain.len(), 0);
+        let (i, schema) = map(take(schema_length), |s: &[u8]| {
+            String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
+        })(i)?;
+        let (i, _) = take(1usize)(i)?;
+        let (i, query) = map(
+            take(
+                header.event_size
+                    - 19
+                    - 4
+                    - 4
+                    - 1
+                    - 2
+                    - 2
+                    - status_vars_length as u32
+                    - schema_length as u32
+                    - 1
+                    - 4,
+            ),
+            |s: &[u8]| extract_string(s),
+        )(i)?;
+        let (i, checksum) = le_u32(i)?;
+        Ok((
+            i,
+            Query {
+                header,
+                slave_proxy_id,
+                execution_time,
+                schema_length,
+                error_code,
+                status_vars_length,
+                status_vars,
+                schema,
+                query,
+                checksum,
+            },
+        ))
+    }
+}
+
+pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let f = move |i| Query::parse(i, header.clone());
+    map(f, |e| Event::Query(e))(input)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -87,53 +141,6 @@ pub struct Q_SQL_MODE_CODE_VAL {
     high_not_precedence: bool,
     no_engine_substitution: bool,
     pad_char_to_full_length: bool,
-}
-
-pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, slave_proxy_id) = le_u32(input)?;
-    let (i, execution_time) = le_u32(i)?;
-    let (i, schema_length) = le_u8(i)?;
-    let (i, error_code) = le_u16(i)?;
-    let (i, status_vars_length) = le_u16(i)?;
-    let (i, raw_vars) = take(status_vars_length)(i)?;
-    let (remain, status_vars) = many0(parse_status_var)(raw_vars)?;
-    assert_eq!(remain.len(), 0);
-    let (i, schema) = map(take(schema_length), |s: &[u8]| {
-        String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
-    })(i)?;
-    let (i, _) = take(1usize)(i)?;
-    let (i, query) = map(
-        take(
-            header.event_size
-                - 19
-                - 4
-                - 4
-                - 1
-                - 2
-                - 2
-                - status_vars_length as u32
-                - schema_length as u32
-                - 1
-                - 4,
-        ),
-        |s: &[u8]| extract_string(s),
-    )(i)?;
-    let (i, checksum) = le_u32(i)?;
-    Ok((
-        i,
-        Event::Query(Query {
-            header,
-            slave_proxy_id,
-            execution_time,
-            schema_length,
-            error_code,
-            status_vars_length,
-            status_vars,
-            schema,
-            query,
-            checksum,
-        }),
-    ))
 }
 
 fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
@@ -238,4 +245,90 @@ fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar> {
         0x0d => map(pu32, |val| QueryStatusVar::Q_MICROSECONDS(val))(i),
         __ => unreachable!(),
     }
+}
+
+#[test]
+fn test_query() {
+    use super::parse_header;
+
+    let input: Vec<u8> = vec![
+        54, 157, 253, 94, 2, 123, 0, 0, 0, 78, 1, 0, 0, 41, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
+        4, 0, 0, 33, 0, 0, 0, 0, 0, 0, 1, 32, 0, 160, 85, 0, 0, 0, 0, 6, 3, 115, 116, 100, 4, 33,
+        0, 33, 0, 224, 0, 12, 1, 116, 101, 115, 116, 0, 116, 101, 115, 116, 0, 67, 82, 69, 65, 84,
+        69, 32, 84, 65, 66, 76, 69, 32, 73, 70, 32, 78, 79, 84, 32, 69, 88, 73, 83, 84, 83, 32, 96,
+        114, 117, 110, 111, 111, 98, 95, 116, 98, 108, 96, 40, 10, 32, 32, 32, 96, 114, 117, 110,
+        111, 111, 98, 95, 105, 100, 96, 32, 73, 78, 84, 32, 85, 78, 83, 73, 71, 78, 69, 68, 32, 65,
+        85, 84, 79, 95, 73, 78, 67, 82, 69, 77, 69, 78, 84, 44, 10, 32, 32, 32, 96, 114, 117, 110,
+        111, 111, 98, 95, 116, 105, 116, 108, 101, 96, 32, 86, 65, 82, 67, 72, 65, 82, 40, 49, 48,
+        48, 41, 32, 78, 79, 84, 32, 78, 85, 76, 76, 44, 10, 32, 32, 32, 96, 114, 117, 110, 111,
+        111, 98, 95, 97, 117, 116, 104, 111, 114, 96, 32, 86, 65, 82, 67, 72, 65, 82, 40, 52, 48,
+        41, 32, 78, 79, 84, 32, 78, 85, 76, 76, 44, 10, 32, 32, 32, 96, 115, 117, 98, 109, 105,
+        115, 115, 105, 111, 110, 95, 100, 97, 116, 101, 96, 32, 68, 65, 84, 69, 44, 10, 32, 32, 32,
+        80, 82, 73, 77, 65, 82, 89, 32, 75, 69, 89, 32, 40, 32, 96, 114, 117, 110, 111, 111, 98,
+        95, 105, 100, 96, 32, 41, 10, 41, 69, 78, 71, 73, 78, 69, 61, 73, 110, 110, 111, 68, 66,
+        32, 68, 69, 70, 65, 85, 76, 84, 32, 67, 72, 65, 82, 83, 69, 84, 61, 117, 116, 102, 56, 120,
+        116, 234, 84,
+    ];
+    let (i, header) = parse_header(&input).unwrap();
+    let (i, event) = Query::parse(i, header.clone()).unwrap();
+    assert_eq!(i.len(), 0);
+    assert_eq!(
+        dbg!(event),
+        Query {
+            header,
+            slave_proxy_id: 3,
+            execution_time: 0,
+            schema_length: 4,
+            schema: String::from("test"),
+            error_code: 0,
+            status_vars_length: 33,
+            status_vars: vec![
+                QueryStatusVar::Q_FLAGS2_CODE(Q_FLAGS2_CODE_VAL {
+                    auto_is_null: false,
+                    auto_commit: true,
+                    foreign_key_checks: true,
+                    unique_checks: true,
+                }),
+                QueryStatusVar::Q_SQL_MODE_CODE(Q_SQL_MODE_CODE_VAL {
+                    real_as_float: false,
+                    pipes_as_concat: false,
+                    ansi_quotes: false,
+                    ignore_space: false,
+                    not_used: false,
+                    only_full_group_by: true,
+                    no_unsigned_subtraction: false,
+                    no_dir_in_create: false,
+                    postgresql: false,
+                    oracle: false,
+                    mssql: false,
+                    db2: false,
+                    maxdb: false,
+                    no_key_options: false,
+                    no_table_options: false,
+                    no_field_options: false,
+                    mysql323: false,
+                    mysql40: false,
+                    ansi: false,
+                    no_auto_value_on_zero: false,
+                    no_backslash_escapes: false,
+                    strict_trans_tables: true,
+                    strict_all_tables: false,
+                    no_zero_in_date: true,
+                    no_zero_date: true,
+                    invalid_dates: false,
+                    error_for_division_by_zero: true,
+                    traditional: false,
+                    no_auto_create_user: true,
+                    high_not_precedence: false,
+                    no_engine_substitution: true,
+                    pad_char_to_full_length: false
+                }),
+                QueryStatusVar::Q_CATALOG_NZ_CODE("std".to_string()),
+                QueryStatusVar::Q_CHARSET_CODE(33, 33, 224),
+                QueryStatusVar::Q_UPDATED_DB_NAMES(vec!["test".to_string()])
+            ],
+            query: String::from("CREATE TABLE IF NOT EXISTS `runoob_tbl`(\n   `runoob_id` INT UNSIGNED AUTO_INCREMENT,\n   `runoob_title` VARCHAR(100) NOT NULL,\n   `runoob_author` VARCHAR(40) NOT NULL,\n   `submission_date` DATE,\n   PRIMARY KEY ( `runoob_id` )\n)ENGINE=InnoDB DEFAULT CHARSET=utf8"),
+            checksum: 1424651384,
+        }
+    );
 }

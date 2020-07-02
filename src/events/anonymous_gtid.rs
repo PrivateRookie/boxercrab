@@ -1,4 +1,4 @@
-use super::{Event, Header};
+use super::{Event, Header, Parse};
 use nom::{
     bytes::complete::take,
     combinator::map,
@@ -20,30 +20,37 @@ pub struct AnonymousGtid {
     checksum: u32,
 }
 
+impl Parse<AnonymousGtid> for AnonymousGtid {
+    fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], AnonymousGtid> {
+        let (i, rbr_only) = map(le_u8, |t: u8| t == 0)(input)?;
+        let (i, encoded_sig_length) = le_u32(i)?;
+        let (i, encoded_gno_length) = le_u32(i)?;
+        let (i, unknown) = map(
+            take(header.event_size - 19 - (1 + 4 * 2 + 8 * 2 + 4)),
+            |s: &[u8]| s.to_vec(),
+        )(i)?;
+        let (i, last_committed) = le_i64(i)?;
+        let (i, sequence_number) = le_i64(i)?;
+        let (i, checksum) = le_u32(i)?;
+        Ok((
+            i,
+            AnonymousGtid {
+                header,
+                rbr_only,
+                encoded_sig_length,
+                encoded_gno_length,
+                last_committed,
+                sequence_number,
+                unknown,
+                checksum,
+            },
+        ))
+    }
+}
+
 pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, rbr_only) = map(le_u8, |t: u8| t == 0)(input)?;
-    let (i, encoded_sig_length) = le_u32(i)?;
-    let (i, encoded_gno_length) = le_u32(i)?;
-    let (i, unknown) = map(
-        take(header.event_size - 19 - (1 + 4 * 2 + 8 * 2 + 4)),
-        |s: &[u8]| s.to_vec(),
-    )(i)?;
-    let (i, last_committed) = le_i64(i)?;
-    let (i, sequence_number) = le_i64(i)?;
-    let (i, checksum) = le_u32(i)?;
-    Ok((
-        i,
-        Event::AnonymousGtid(AnonymousGtid {
-            header,
-            rbr_only,
-            encoded_sig_length,
-            encoded_gno_length,
-            last_committed,
-            sequence_number,
-            unknown,
-            checksum,
-        }),
-    ))
+    let f = move |i| AnonymousGtid::parse(i, header.clone());
+    map(f, |e| Event::AnonymousGtid(e))(input)
 }
 
 #[test]
@@ -55,12 +62,9 @@ fn test_anonymous_gtids() {
         0, 0, 0, 0, 0, 10, 21, 198, 18,
     ];
     let (i, header) = parse_header(&input).unwrap();
-    if let Ok((i, Event::AnonymousGtid(event))) = parse(&i, header) {
-        assert_eq!(event.last_committed, 0);
-        assert_eq!(event.sequence_number, 1);
-        assert_eq!(event.rbr_only, false);
-        assert_eq!(i.len(), 0);
-    } else {
-        panic!();
-    }
+    let (i, event) = AnonymousGtid::parse(i, header).unwrap();
+    assert_eq!(event.last_committed, 0);
+    assert_eq!(event.sequence_number, 1);
+    assert_eq!(event.rbr_only, false);
+    assert_eq!(i.len(), 0);
 }
