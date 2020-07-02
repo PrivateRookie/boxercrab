@@ -1,0 +1,362 @@
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#200702  8:37:48 server id 123  end_log_pos 123 CRC32 0xee7e58cf 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#        4 dc 9c fd 5e   0f   7b 00 00 00   77 00 00 00   7b 00 00 00   01 00
+#       17 04 00 35 2e 37 2e 32 39  2d 6c 6f 67 00 00 00 00 |..5.7.29.log....|
+#       27 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       37 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       47 00 00 00 00 dc 9c fd 5e  13 38 0d 00 08 00 12 00 |.........8......|
+#       57 04 04 04 04 12 00 00 5f  00 04 1a 08 00 00 00 08 |................|
+#       67 08 08 02 00 00 00 0a 0a  0a 2a 2a 00 12 34 00 01 |.............4..|
+#       77 cf 58 7e ee                                      |.X..|
+# 	Start: binlog v 4, server v 5.7.29-log created 200702  8:37:48 at startup
+# Warning: this binlog is either in use or was not closed properly.
+ROLLBACK/*!*/;
+BINLOG '
+3Jz9Xg97AAAAdwAAAHsAAAABAAQANS43LjI5LWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAADcnP1eEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+Ac9Yfu4=
+'/*!*/;
+# at 123
+#200702  8:37:48 server id 123  end_log_pos 154 CRC32 0xfdc44b52 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       7b dc 9c fd 5e   23   7b 00 00 00   1f 00 00 00   9a 00 00 00   80 00
+#       8e 00 00 00 00 00 00 00 00  52 4b c4 fd             |........RK..|
+# 	Previous-GTIDs
+# [empty]
+# at 154
+#200702  8:39:18 server id 123  end_log_pos 219 CRC32 0x12c6150a 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       9a 36 9d fd 5e   22   7b 00 00 00   41 00 00 00   db 00 00 00   00 00
+#       ad 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       bd 00 00 00 00 00 00 00 00  00 02 00 00 00 00 00 00 |................|
+#       cd 00 00 01 00 00 00 00 00  00 00 0a 15 c6 12       |..............|
+# 	Anonymous_GTID	last_committed=0	sequence_number=1	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 219
+#200702  8:39:18 server id 123  end_log_pos 553 CRC32 0x54ea7478 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       db 36 9d fd 5e   02   7b 00 00 00   4e 01 00 00   29 02 00 00   00 00
+#       ee 03 00 00 00 00 00 00 00  04 00 00 21 00 00 00 00 |................|
+#       fe 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      10e 04 21 00 21 00 e0 00 0c  01 74 65 73 74 00 74 65 |.........test.te|
+#      11e 73 74 00 43 52 45 41 54  45 20 54 41 42 4c 45 20 |st.CREATE.TABLE.|
+#      12e 49 46 20 4e 4f 54 20 45  58 49 53 54 53 20 60 72 |IF.NOT.EXISTS..r|
+#      13e 75 6e 6f 6f 62 5f 74 62  6c 60 28 0a 20 20 20 60 |unoob.tbl.......|
+#      14e 72 75 6e 6f 6f 62 5f 69  64 60 20 49 4e 54 20 55 |runoob.id..INT.U|
+#      15e 4e 53 49 47 4e 45 44 20  41 55 54 4f 5f 49 4e 43 |NSIGNED.AUTO.INC|
+#      16e 52 45 4d 45 4e 54 2c 0a  20 20 20 60 72 75 6e 6f |REMENT......runo|
+#      17e 6f 62 5f 74 69 74 6c 65  60 20 56 41 52 43 48 41 |ob.title..VARCHA|
+#      18e 52 28 31 30 30 29 20 4e  4f 54 20 4e 55 4c 4c 2c |R.100..NOT.NULL.|
+#      19e 0a 20 20 20 60 72 75 6e  6f 6f 62 5f 61 75 74 68 |.....runoob.auth|
+#      1ae 6f 72 60 20 56 41 52 43  48 41 52 28 34 30 29 20 |or..VARCHAR.40..|
+#      1be 4e 4f 54 20 4e 55 4c 4c  2c 0a 20 20 20 60 73 75 |NOT.NULL......su|
+#      1ce 62 6d 69 73 73 69 6f 6e  5f 64 61 74 65 60 20 44 |bmission.date..D|
+#      1de 41 54 45 2c 0a 20 20 20  50 52 49 4d 41 52 59 20 |ATE.....PRIMARY.|
+#      1ee 4b 45 59 20 28 20 60 72  75 6e 6f 6f 62 5f 69 64 |KEY....runoob.id|
+#      1fe 60 20 29 0a 29 45 4e 47  49 4e 45 3d 49 6e 6e 6f |.....ENGINE.Inno|
+#      20e 44 42 20 44 45 46 41 55  4c 54 20 43 48 41 52 53 |DB.DEFAULT.CHARS|
+#      21e 45 54 3d 75 74 66 38 78  74 ea 54                |ET.utf8xt.T|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+use `test`/*!*/;
+SET TIMESTAMP=1593679158/*!*/;
+SET @@session.pseudo_thread_id=3/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1436549152/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8 *//*!*/;
+SET @@session.character_set_client=33,@@session.collation_connection=33,@@session.collation_server=224/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+CREATE TABLE IF NOT EXISTS `runoob_tbl`(
+   `runoob_id` INT UNSIGNED AUTO_INCREMENT,
+   `runoob_title` VARCHAR(100) NOT NULL,
+   `runoob_author` VARCHAR(40) NOT NULL,
+   `submission_date` DATE,
+   PRIMARY KEY ( `runoob_id` )
+)ENGINE=InnoDB DEFAULT CHARSET=utf8
+/*!*/;
+# at 553
+#200702  8:41:14 server id 123  end_log_pos 618 CRC32 0x5e576180 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      229 aa 9d fd 5e   22   7b 00 00 00   41 00 00 00   6a 02 00 00   00 00
+#      23c 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      24c 00 00 00 00 00 00 00 00  00 02 01 00 00 00 00 00 |................|
+#      25c 00 00 02 00 00 00 00 00  00 00 80 61 57 5e       |...........aW.|
+# 	Anonymous_GTID	last_committed=1	sequence_number=2	rbr_only=yes
+/*!50718 SET TRANSACTION ISOLATION LEVEL READ COMMITTED*//*!*/;
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 618
+#200702  8:41:14 server id 123  end_log_pos 698 CRC32 0xdb111070 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      26a aa 9d fd 5e   02   7b 00 00 00   50 00 00 00   ba 02 00 00   08 00
+#      27d 03 00 00 00 00 00 00 00  04 00 00 22 00 00 00 00 |................|
+#      28d 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      29d 04 21 00 21 00 e0 00 05  06 53 59 53 54 45 4d 74 |.........SYSTEMt|
+#      2ad 65 73 74 00 42 45 47 49  4e 70 10 11 db          |est.BEGINp...|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679274/*!*/;
+SET @@session.time_zone='SYSTEM'/*!*/;
+BEGIN
+/*!*/;
+# at 698
+#200702  8:41:14 server id 123  end_log_pos 758 CRC32 0x4435a8c2 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      2ba aa 9d fd 5e   13   7b 00 00 00   3c 00 00 00   f6 02 00 00   00 00
+#      2cd 6d 00 00 00 00 00 01 00  04 74 65 73 74 00 0a 72 |m........test..r|
+#      2dd 75 6e 6f 6f 62 5f 74 62  6c 00 04 03 0f 0f 0a 04 |unoob.tbl.......|
+#      2ed 2c 01 78 00 08 c2 a8 35  44                      |..x....5D|
+# 	Table_map: `test`.`runoob_tbl` mapped to number 109
+# at 758
+#200702  8:41:14 server id 123  end_log_pos 808 CRC32 0x22e3fec9 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      2f6 aa 9d fd 5e   1e   7b 00 00 00   32 00 00 00   28 03 00 00   00 00
+#      309 6d 00 00 00 00 00 01 00  02 00 04 ff f0 01 00 00 |m...............|
+#      319 00 02 00 78 64 02 67 73  e2 c8 0f c9 fe e3 22    |...xd.gs.......|
+# 	Write_rows: table id 109 flags: STMT_END_F
+
+BINLOG '
+qp39XhN7AAAAPAAAAPYCAAAAAG0AAAAAAAEABHRlc3QACnJ1bm9vYl90YmwABAMPDwoELAF4AAjC
+qDVE
+qp39Xh57AAAAMgAAACgDAAAAAG0AAAAAAAEAAgAE//ABAAAAAgB4ZAJnc+LID8n+4yI=
+'/*!*/;
+# at 808
+#200702  8:41:14 server id 123  end_log_pos 839 CRC32 0x86eb78bc 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      328 aa 9d fd 5e   10   7b 00 00 00   1f 00 00 00   47 03 00 00   00 00
+#      33b 0b 00 00 00 00 00 00 00  bc 78 eb 86             |.........x..|
+# 	Xid = 11
+COMMIT/*!*/;
+# at 839
+#200702  8:41:23 server id 123  end_log_pos 904 CRC32 0x530562df 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      347 b3 9d fd 5e   22   7b 00 00 00   41 00 00 00   88 03 00 00   00 00
+#      35a 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      36a 00 00 00 00 00 00 00 00  00 02 02 00 00 00 00 00 |................|
+#      37a 00 00 03 00 00 00 00 00  00 00 df 62 05 53       |...........b.S|
+# 	Anonymous_GTID	last_committed=2	sequence_number=3	rbr_only=yes
+/*!50718 SET TRANSACTION ISOLATION LEVEL READ COMMITTED*//*!*/;
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 904
+#200702  8:41:23 server id 123  end_log_pos 984 CRC32 0x594eb24f 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      388 b3 9d fd 5e   02   7b 00 00 00   50 00 00 00   d8 03 00 00   08 00
+#      39b 03 00 00 00 00 00 00 00  04 00 00 22 00 00 00 00 |................|
+#      3ab 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      3bb 04 21 00 21 00 e0 00 05  06 53 59 53 54 45 4d 74 |.........SYSTEMt|
+#      3cb 65 73 74 00 42 45 47 49  4e 4f b2 4e 59          |est.BEGINO.NY|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679283/*!*/;
+BEGIN
+/*!*/;
+# at 984
+#200702  8:41:23 server id 123  end_log_pos 1044 CRC32 0x535137cd 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      3d8 b3 9d fd 5e   13   7b 00 00 00   3c 00 00 00   14 04 00 00   00 00
+#      3eb 6d 00 00 00 00 00 01 00  04 74 65 73 74 00 0a 72 |m........test..r|
+#      3fb 75 6e 6f 6f 62 5f 74 62  6c 00 04 03 0f 0f 0a 04 |unoob.tbl.......|
+#      40b 2c 01 78 00 08 cd 37 51  53                      |..x...7QS|
+# 	Table_map: `test`.`runoob_tbl` mapped to number 109
+# at 1044
+#200702  8:41:23 server id 123  end_log_pos 1094 CRC32 0xacd85659 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      414 b3 9d fd 5e   1e   7b 00 00 00   32 00 00 00   46 04 00 00   00 00
+#      427 6d 00 00 00 00 00 01 00  02 00 04 ff f0 02 00 00 |m...............|
+#      437 00 02 00 77 77 02 67 73  e2 c8 0f 59 56 d8 ac    |...ww.gs...YV..|
+# 	Write_rows: table id 109 flags: STMT_END_F
+
+BINLOG '
+s539XhN7AAAAPAAAABQEAAAAAG0AAAAAAAEABHRlc3QACnJ1bm9vYl90YmwABAMPDwoELAF4AAjN
+N1FT
+s539Xh57AAAAMgAAAEYEAAAAAG0AAAAAAAEAAgAE//ACAAAAAgB3dwJnc+LID1lW2Kw=
+'/*!*/;
+# at 1094
+#200702  8:41:23 server id 123  end_log_pos 1125 CRC32 0x2f2dad16 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      446 b3 9d fd 5e   10   7b 00 00 00   1f 00 00 00   65 04 00 00   00 00
+#      459 0c 00 00 00 00 00 00 00  16 ad 2d 2f             |............|
+# 	Xid = 12
+COMMIT/*!*/;
+# at 1125
+#200702  8:42:30 server id 123  end_log_pos 1190 CRC32 0x0b759ebf 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      465 f6 9d fd 5e   22   7b 00 00 00   41 00 00 00   a6 04 00 00   00 00
+#      478 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      488 00 00 00 00 00 00 00 00  00 02 03 00 00 00 00 00 |................|
+#      498 00 00 04 00 00 00 00 00  00 00 bf 9e 75 0b       |............u.|
+# 	Anonymous_GTID	last_committed=3	sequence_number=4	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 1190
+#200702  8:42:30 server id 123  end_log_pos 1321 CRC32 0xac5bd5c5 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      4a6 f6 9d fd 5e   02   7b 00 00 00   83 00 00 00   29 05 00 00   00 00
+#      4b9 03 00 00 00 00 00 00 00  04 00 00 21 00 00 00 00 |................|
+#      4c9 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      4d9 04 21 00 21 00 e0 00 0c  01 74 65 73 74 00 74 65 |.........test.te|
+#      4e9 73 74 00 61 6c 74 65 72  20 74 61 62 6c 65 20 72 |st.alter.table.r|
+#      4f9 75 6e 6f 6f 62 5f 74 62  6c 20 61 64 64 20 69 6e |unoob.tbl.add.in|
+#      509 64 65 78 20 74 65 73 74  5f 69 6e 64 65 78 28 72 |dex.test.index.r|
+#      519 75 6e 6f 6f 62 5f 74 69  74 6c 65 29 c5 d5 5b ac |unoob.title.....|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679350/*!*/;
+alter table runoob_tbl add index test_index(runoob_title)
+/*!*/;
+# at 1321
+#200702  8:44:01 server id 123  end_log_pos 1386 CRC32 0x39771cd9 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      529 51 9e fd 5e   22   7b 00 00 00   41 00 00 00   6a 05 00 00   00 00
+#      53c 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      54c 00 00 00 00 00 00 00 00  00 02 04 00 00 00 00 00 |................|
+#      55c 00 00 05 00 00 00 00 00  00 00 d9 1c 77 39       |............w9|
+# 	Anonymous_GTID	last_committed=4	sequence_number=5	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 1386
+#200702  8:44:01 server id 123  end_log_pos 1527 CRC32 0xc3af10f7 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      56a 51 9e fd 5e   02   7b 00 00 00   8d 00 00 00   f7 05 00 00   00 00
+#      57d 03 00 00 00 00 00 00 00  04 00 00 21 00 00 00 00 |................|
+#      58d 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      59d 04 21 00 21 00 e0 00 0c  01 74 65 73 74 00 74 65 |.........test.te|
+#      5ad 73 74 00 61 6c 74 65 72  20 74 61 62 6c 65 20 72 |st.alter.table.r|
+#      5bd 75 6e 6f 6f 62 5f 74 62  6c 20 61 64 64 20 65 78 |unoob.tbl.add.ex|
+#      5cd 74 72 61 20 76 61 72 63  68 61 72 28 32 30 30 29 |tra.varchar.200.|
+#      5dd 20 61 66 74 65 72 20 73  75 62 6d 69 73 73 69 6f |.after.submissio|
+#      5ed 6e 5f 64 61 74 65 f7 10  af c3                   |n.date....|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679441/*!*/;
+alter table runoob_tbl add extra varchar(200) after submission_date
+/*!*/;
+# at 1527
+#200702  8:45:05 server id 123  end_log_pos 1592 CRC32 0x583e6d2d 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      5f7 91 9e fd 5e   22   7b 00 00 00   41 00 00 00   38 06 00 00   00 00
+#      60a 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      61a 00 00 00 00 00 00 00 00  00 02 05 00 00 00 00 00 |................|
+#      62a 00 00 06 00 00 00 00 00  00 00 2d 6d 3e 58       |...........m.X|
+# 	Anonymous_GTID	last_committed=5	sequence_number=6	rbr_only=yes
+/*!50718 SET TRANSACTION ISOLATION LEVEL READ COMMITTED*//*!*/;
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 1592
+#200702  8:45:05 server id 123  end_log_pos 1664 CRC32 0x4f01ad85 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      638 91 9e fd 5e   02   7b 00 00 00   48 00 00 00   80 06 00 00   08 00
+#      64b 03 00 00 00 00 00 00 00  04 00 00 1a 00 00 00 00 |................|
+#      65b 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      66b 04 21 00 21 00 e0 00 74  65 73 74 00 42 45 47 49 |.......test.BEGI|
+#      67b 4e 85 ad 01 4f                                   |N...O|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679505/*!*/;
+BEGIN
+/*!*/;
+# at 1664
+#200702  8:45:05 server id 123  end_log_pos 1727 CRC32 0x43f58216 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      680 91 9e fd 5e   13   7b 00 00 00   3f 00 00 00   bf 06 00 00   00 00
+#      693 70 00 00 00 00 00 01 00  04 74 65 73 74 00 0a 72 |p........test..r|
+#      6a3 75 6e 6f 6f 62 5f 74 62  6c 00 05 03 0f 0f 0a 0f |unoob.tbl.......|
+#      6b3 06 2c 01 78 00 58 02 18  16 82 f5 43             |...x.X.....C|
+# 	Table_map: `test`.`runoob_tbl` mapped to number 112
+# at 1727
+#200702  8:45:05 server id 123  end_log_pos 1793 CRC32 0x16037319 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      6bf 91 9e fd 5e   1f   7b 00 00 00   42 00 00 00   01 07 00 00   00 00
+#      6d2 70 00 00 00 00 00 01 00  02 00 05 ff ff f0 02 00 |p...............|
+#      6e2 00 00 02 00 77 77 02 67  73 e2 c8 0f f0 02 00 00 |....ww.gs.......|
+#      6f2 00 02 00 77 77 02 6a 71  e2 c8 0f 19 73 03 16    |...ww.jq....s..|
+# 	Update_rows: table id 112 flags: STMT_END_F
+
+BINLOG '
+kZ79XhN7AAAAPwAAAL8GAAAAAHAAAAAAAAEABHRlc3QACnJ1bm9vYl90YmwABQMPDwoPBiwBeABY
+AhgWgvVD
+kZ79Xh97AAAAQgAAAAEHAAAAAHAAAAAAAAEAAgAF///wAgAAAAIAd3cCZ3PiyA/wAgAAAAIAd3cC
+anHiyA8ZcwMW
+'/*!*/;
+# at 1793
+#200702  8:45:05 server id 123  end_log_pos 1824 CRC32 0xad6af68d 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      701 91 9e fd 5e   10   7b 00 00 00   1f 00 00 00   20 07 00 00   00 00
+#      714 12 00 00 00 00 00 00 00  8d f6 6a ad             |..........j.|
+# 	Xid = 18
+COMMIT/*!*/;
+# at 1824
+#200702  8:46:02 server id 123  end_log_pos 1889 CRC32 0x180bc58e 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      720 ca 9e fd 5e   22   7b 00 00 00   41 00 00 00   61 07 00 00   00 00
+#      733 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      743 00 00 00 00 00 00 00 00  00 02 06 00 00 00 00 00 |................|
+#      753 00 00 07 00 00 00 00 00  00 00 8e c5 0b 18       |..............|
+# 	Anonymous_GTID	last_committed=6	sequence_number=7	rbr_only=yes
+/*!50718 SET TRANSACTION ISOLATION LEVEL READ COMMITTED*//*!*/;
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 1889
+#200702  8:46:02 server id 123  end_log_pos 1961 CRC32 0xcaefdfe3 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      761 ca 9e fd 5e   02   7b 00 00 00   48 00 00 00   a9 07 00 00   08 00
+#      774 03 00 00 00 00 00 00 00  04 00 00 1a 00 00 00 00 |................|
+#      784 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      794 04 21 00 21 00 e0 00 74  65 73 74 00 42 45 47 49 |.......test.BEGI|
+#      7a4 4e e3 df ef ca                                   |N....|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679562/*!*/;
+BEGIN
+/*!*/;
+# at 1961
+#200702  8:46:02 server id 123  end_log_pos 2024 CRC32 0x112028dd 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      7a9 ca 9e fd 5e   13   7b 00 00 00   3f 00 00 00   e8 07 00 00   00 00
+#      7bc 70 00 00 00 00 00 01 00  04 74 65 73 74 00 0a 72 |p........test..r|
+#      7cc 75 6e 6f 6f 62 5f 74 62  6c 00 05 03 0f 0f 0a 0f |unoob.tbl.......|
+#      7dc 06 2c 01 78 00 58 02 18  dd 28 20 11             |...x.X......|
+# 	Table_map: `test`.`runoob_tbl` mapped to number 112
+# at 2024
+#200702  8:46:02 server id 123  end_log_pos 2074 CRC32 0x62ee0c87 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      7e8 ca 9e fd 5e   20   7b 00 00 00   32 00 00 00   1a 08 00 00   00 00
+#      7fb 70 00 00 00 00 00 01 00  02 00 05 ff f0 01 00 00 |p...............|
+#      80b 00 02 00 78 64 02 67 73  e2 c8 0f 87 0c ee 62    |...xd.gs......b|
+# 	Delete_rows: table id 112 flags: STMT_END_F
+
+BINLOG '
+yp79XhN7AAAAPwAAAOgHAAAAAHAAAAAAAAEABHRlc3QACnJ1bm9vYl90YmwABQMPDwoPBiwBeABY
+AhjdKCAR
+yp79XiB7AAAAMgAAABoIAAAAAHAAAAAAAAEAAgAF//ABAAAAAgB4ZAJnc+LID4cM7mI=
+'/*!*/;
+# at 2074
+#200702  8:46:02 server id 123  end_log_pos 2105 CRC32 0x4b751567 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      81a ca 9e fd 5e   10   7b 00 00 00   1f 00 00 00   39 08 00 00   00 00
+#      82d 16 00 00 00 00 00 00 00  67 15 75 4b             |........g.uK|
+# 	Xid = 22
+COMMIT/*!*/;
+# at 2105
+#200702  8:46:16 server id 123  end_log_pos 2170 CRC32 0xa1146780 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      839 d8 9e fd 5e   22   7b 00 00 00   41 00 00 00   7a 08 00 00   00 00
+#      84c 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#      85c 00 00 00 00 00 00 00 00  00 02 07 00 00 00 00 00 |................|
+#      86c 00 00 08 00 00 00 00 00  00 00 80 67 14 a1       |...........g..|
+# 	Anonymous_GTID	last_committed=7	sequence_number=8	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+# at 2170
+#200702  8:46:16 server id 123  end_log_pos 2293 CRC32 0x3649834d 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      87a d8 9e fd 5e   02   7b 00 00 00   7b 00 00 00   f5 08 00 00   04 00
+#      88d 03 00 00 00 00 00 00 00  04 00 00 21 00 00 00 00 |................|
+#      89d 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      8ad 04 21 00 21 00 e0 00 0c  01 74 65 73 74 00 74 65 |.........test.te|
+#      8bd 73 74 00 44 52 4f 50 20  54 41 42 4c 45 20 60 72 |st.DROP.TABLE..r|
+#      8cd 75 6e 6f 6f 62 5f 74 62  6c 60 20 2f 2a 20 67 65 |unoob.tbl.....ge|
+#      8dd 6e 65 72 61 74 65 64 20  62 79 20 73 65 72 76 65 |nerated.by.serve|
+#      8ed 72 20 2a 2f 4d 83 49 36                          |r...M.I6|
+# 	Query	thread_id=3	exec_time=0	error_code=0
+SET TIMESTAMP=1593679576/*!*/;
+DROP TABLE `runoob_tbl` /* generated by server */
+/*!*/;
+SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
+DELIMITER ;
+# End of log file
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;

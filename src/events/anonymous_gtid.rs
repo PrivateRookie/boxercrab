@@ -45,3 +45,22 @@ pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
         }),
     ))
 }
+
+#[test]
+fn test_anonymous_gtids() {
+    use super::parse_header;
+    let input: Vec<u8> = vec![
+        54, 157, 253, 94, 34, 123, 0, 0, 0, 65, 0, 0, 0, 219, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 10, 21, 198, 18,
+    ];
+    let (i, header) = parse_header(&input).unwrap();
+    if let Ok((i, Event::AnonymousGtid(event))) = parse(&i, header) {
+        assert_eq!(event.last_committed, 0);
+        assert_eq!(event.sequence_number, 1);
+        assert_eq!(event.rbr_only, false);
+        assert_eq!(i.len(), 0);
+    } else {
+        panic!();
+    }
+}
