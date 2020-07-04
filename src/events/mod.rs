@@ -1,13 +1,17 @@
-use crate::utils::{extract_string, parse_lenenc_int};
+use crate::utils::{extract_n_string, extract_string, parse_lenenc_int, take_till_term_string};
 use nom::{
     bytes::complete::{tag, take},
     combinator::map,
-    multi::many0,
+    multi::{many0, many1, many_m_n},
     number::complete::{le_i64, le_u16, le_u32, le_u64, le_u8},
+    sequence::tuple,
     IResult,
 };
 
 mod query;
+mod write_row_v2;
+
+use write_row_v2 as wr_v2;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header {
@@ -45,6 +49,11 @@ pub fn check_start(i: &[u8]) -> IResult<&[u8], &[u8]> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Event {
+    // ref: https://dev.mysql.com/doc/internals/en/ignored-events.html#unknown-event
+    Unknown {
+        header: Header,
+        checksum: u32,
+    },
     // doc: https://dev.mysql.com/doc/internals/en/query-event.html
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L44-L426
     // layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L627-L643
@@ -60,6 +69,100 @@ pub enum Event {
         query: String,
         checksum: u32,
     },
+    // ref: https://dev.mysql.com/doc/internals/en/stop-event.html
+    Stop {
+        header: Header,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/rotate-event.html
+    Rotate {
+        header: Header,
+        position: u64,
+        next_binlog: String,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/intvar-event.html
+    IntVar {
+        header: Header,
+        e_type: IntVarEventType,
+        value: u64,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/load-event.html
+    Load {
+        header: Header,
+        thread_id: u32,
+        execution_time: u32,
+        skip_lines: u32,
+        table_name_length: u8,
+        schema_length: u8,
+        num_fields: u32,
+        field_term: u8,
+        enclosed_by: u8,
+        line_term: u8,
+        line_start: u8,
+        escaped_by: u8,
+        opt_flags: OptFlags,
+        empty_flags: EmptyFlags,
+        field_name_lengths: Vec<u8>,
+        field_names: Vec<String>,
+        table_name: String,
+        schema_name: String,
+        file_name: String,
+        checksum: u32,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/ignored-events.html#slave-event
+    Slave {
+        header: Header,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/create-file-event.html
+    CreateFile {
+        header: Header,
+        file_id: u16,
+        block_data: String,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/append-block-event.html
+    AppendFile {
+        header: Header,
+        file_id: u16,
+        block_data: String,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/exec-load-event.html
+    ExecLoad {
+        header: Header,
+        file_id: u16,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/delete-file-event.html
+    DeleteFile {
+        header: Header,
+        file_id: u16,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/new-load-event.html
+    NewLoad {
+        header: Header,
+        thread_id: u32,
+        execution_time: u32,
+        skip_lines: u32,
+        table_name_length: u8,
+        schema_length: u8,
+        num_fields: u32,
+
+        field_term_length: u8,
+        field_term: String,
+        enclosed_by_length: u8,
+        enclosed_by: String,
+        line_term_length: u8,
+        line_term: String,
+        line_start_length: u8,
+        line_start: String,
+        escaped_by_length: u8,
+        escaped_by: String,
+        opt_flags: OptFlags,
+
+        field_name_lengths: Vec<u8>,
+        field_names: Vec<String>,
+        table_name: String,
+        schema_name: String,
+        file_name: String,
+        checksum: u32,
+    },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L295-L344
     // event_data layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L387-L416
     FormatDesc {
@@ -70,6 +173,30 @@ pub enum Event {
         event_header_length: u8,
         supported_types: Vec<u8>,
         checksum_alg: u8,
+        checksum: u32,
+    },
+    XID {
+        header: Header,
+        xid: u64,
+        checksum: u32,
+    },
+    TableMap {
+        header: Header,
+        // table_id take 6 bytes in buffer
+        table_id: u64,
+        flags: u16,
+        schema_length: u8,
+        schema: String,
+        // [00] term sign in layout
+        table_name_length: u8,
+        table_name: String,
+        // [00] term sign in layout
+        // len encoded integer
+        column_count: u64,
+        column_type_def: Vec<u8>,
+        // len encoded string
+        column_meta_def: Vec<u8>,
+        null_bit_mask: Vec<u8>,
         checksum: u32,
     },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L932-L991
@@ -92,23 +219,18 @@ pub enum Event {
         buf_size: u32,
         checksum: u32,
     },
-    TableMap {
+    // source https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/rows_event.h#L488-L613
+    WriteRowV2 {
         header: Header,
         // table_id take 6 bytes in buffer
         table_id: u64,
-        flags: u16,
-        schema_length: u8,
-        schema: String,
-        // [00] term sign in layout
-        table_name_length: u8,
-        table_name: String,
-        // [00] term sign in layout
-        // len encoded integer
+        flags: wr_v2::Flags,
+        extra_data_len: u16,
+        extra_data: Vec<wr_v2::ExtraData>,
         column_count: u64,
-        column_type_def: Vec<u8>,
-        // len encoded string
-        column_meta_def: Vec<u8>,
-        null_bit_mask: Vec<u8>,
+        column_present_bit_mask: Vec<u8>,
+        // FIXME unknown struct field
+        rows: Vec<u8>,
         checksum: u32,
     },
 }
@@ -117,9 +239,22 @@ impl Event {
     pub fn parse<'a>(input: &'a [u8]) -> IResult<&'a [u8], Event> {
         let (input, header) = parse_header(input)?;
         match header.event_type {
+            0x00 => parse_unknown(input, header),
             0x02 => parse_query(input, header),
+            0x03 => parse_stop(input, header),
+            0x04 => parse_rotate(input, header),
+            0x05 => parse_intvar(input, header),
+            0x06 => parse_load(input, header),
+            0x07 => parse_slave(input, header),
+            0x08 => parse_create_file(input, header),
+            0x09 => parse_append_file(input, header),
+            0x0a => parse_exec_load(input, header),
+            0x0b => parse_delete_file(input, header),
+            0x0c => parse_new_load(input, header),
             0x0f => parse_format_desc(input, header),
+            0x10 => parse_xid(input, header),
             0x13 => parse_table_map(input, header),
+            0x1e => parse_write_row_v2(input, header),
             0x22 => parse_anonymous_gtid(input, header),
             0x23 => parse_previous_gtids(input, header),
             _ => unreachable!(),
@@ -127,8 +262,333 @@ impl Event {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum IntVarEventType {
+    InvalidIntEvent,
+    LastInsertIdEvent,
+    InsertIdEvent,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct EmptyFlags {
+    field_term_empty: bool,
+    enclosed_empty: bool,
+    line_term_empty: bool,
+    line_start_empty: bool,
+    escape_empty: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OptFlags {
+    dump_file: bool,
+    opt_enclosed: bool,
+    replace: bool,
+    ignore: bool,
+}
+
 fn pu64(input: &[u8]) -> IResult<&[u8], u64> {
     le_u64(input)
+}
+
+// TODO this function hasn't been tested yet
+pub fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    map(le_u32, move |checksum: u32| Event::Unknown {
+        header: header.clone(),
+        checksum,
+    })(input)
+}
+
+fn parse_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, slave_proxy_id) = le_u32(input)?;
+    let (i, execution_time) = le_u32(i)?;
+    let (i, schema_length) = le_u8(i)?;
+    let (i, error_code) = le_u16(i)?;
+    let (i, status_vars_length) = le_u16(i)?;
+    let (i, raw_vars) = take(status_vars_length)(i)?;
+    let (remain, status_vars) = many0(query::parse_status_var)(raw_vars)?;
+    assert_eq!(remain.len(), 0);
+    let (i, schema) = map(take(schema_length), |s: &[u8]| {
+        String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
+    })(i)?;
+    let (i, _) = take(1usize)(i)?;
+    let (i, query) = map(
+        take(
+            header.event_size
+                - 19
+                - 4
+                - 4
+                - 1
+                - 2
+                - 2
+                - status_vars_length as u32
+                - schema_length as u32
+                - 1
+                - 4,
+        ),
+        |s: &[u8]| extract_string(s),
+    )(i)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::Query {
+            header,
+            slave_proxy_id,
+            execution_time,
+            schema_length,
+            error_code,
+            status_vars_length,
+            status_vars,
+            schema,
+            query,
+            checksum,
+        },
+    ))
+}
+
+pub fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    Ok((input, Event::Stop { header }))
+}
+
+pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, position) = le_u64(input)?;
+    let str_len = header.event_size - 19 - 8;
+    let (i, next_binlog) = map(take(str_len), |s: &[u8]| {
+        extract_n_string(i, str_len as usize)
+    })(i)?;
+    Ok((
+        i,
+        Event::Rotate {
+            header,
+            position,
+            next_binlog,
+        },
+    ))
+}
+
+pub fn parse_intvar<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, e_type) = map(le_u8, |t: u8| match t {
+        0x00 => IntVarEventType::InvalidIntEvent,
+        0x01 => IntVarEventType::LastInsertIdEvent,
+        0x02 => IntVarEventType::InsertIdEvent,
+        _ => unreachable!(),
+    })(input)?;
+    let (i, value) = le_u64(i)?;
+    Ok((
+        i,
+        Event::IntVar {
+            header,
+            e_type,
+            value,
+        },
+    ))
+}
+
+fn extract_many_fields<'a>(
+    input: &'a [u8],
+    header: &Header,
+    num_fields: u32,
+    table_name_length: u8,
+    schema_length: u8,
+) -> IResult<&'a [u8], (Vec<u8>, Vec<String>, String, String, String)> {
+    let (i, field_name_lengths) = map(take(num_fields), |s: &[u8]| s.to_vec())(input)?;
+    let total_len: u64 = field_name_lengths.iter().sum::<u8>() as u64 + num_fields as u64;
+    let (i, raw_field_names) = take(total_len)(i)?;
+    let (i, field_names) = many_m_n(
+        num_fields as usize,
+        num_fields as usize,
+        take_till_term_string,
+    )(raw_field_names)?;
+    let (i, table_name) = map(take(table_name_length + 1), |s: &[u8]| extract_string(s))(i)?;
+    let (i, schema_name) = map(take(schema_length + 1), |s: &[u8]| extract_string(s))(i)?;
+    let (i, file_name) = map(
+        take(
+            header.event_size as usize
+                - 19
+                - 25
+                - num_fields as usize
+                - total_len as usize
+                - table_name_length as usize
+                - schema_length as usize
+                - 3
+                - 4,
+        ),
+        |s: &[u8]| extract_string(s),
+    )(i)?;
+    Ok((
+        i,
+        (
+            field_name_lengths,
+            field_names,
+            table_name,
+            schema_name,
+            file_name,
+        ),
+    ))
+}
+
+pub fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (
+        i,
+        (
+            thread_id,
+            execution_time,
+            skip_lines,
+            table_name_length,
+            schema_length,
+            num_fields,
+            field_term,
+            enclosed_by,
+            line_term,
+            line_start,
+            escaped_by,
+        ),
+    ) = tuple((
+        le_u32, le_u32, le_u32, le_u8, le_u8, le_u32, le_u8, le_u8, le_u8, le_u8, le_u8,
+    ))(input)?;
+    let (i, opt_flags) = map(le_u8, |flags: u8| OptFlags {
+        dump_file: (flags >> 0) % 2 == 1,
+        opt_enclosed: (flags >> 1) % 1 == 1,
+        replace: (flags >> 2) % 2 == 1,
+        ignore: (flags >> 3) % 2 == 1,
+    })(i)?;
+    let (i, empty_flags) = map(le_u8, |flags: u8| EmptyFlags {
+        field_term_empty: (flags >> 0) % 2 == 1,
+        enclosed_empty: (flags >> 1) % 2 == 1,
+        line_term_empty: (flags >> 2) % 2 == 1,
+        line_start_empty: (flags >> 3) % 2 == 1,
+        escape_empty: (flags >> 4) % 2 == 1,
+    })(i)?;
+    let (i, (field_name_lengths, field_names, table_name, schema_name, file_name)) =
+        extract_many_fields(i, &header, num_fields, table_name_length, schema_length)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::Load {
+            header,
+            thread_id,
+            execution_time,
+            skip_lines,
+            table_name_length,
+            schema_length,
+            num_fields,
+            field_term,
+            enclosed_by,
+            line_term,
+            line_start,
+            escaped_by,
+            opt_flags,
+            empty_flags,
+            field_name_lengths,
+            field_names,
+            table_name,
+            schema_name,
+            file_name,
+            checksum,
+        },
+    ))
+}
+
+pub fn parse_slave<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    Ok((input, Event::Slave { header }))
+}
+
+fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u16, String)> {
+    let (i, file_id) = le_u16(input)?;
+    let (i, block_data) = map(take(header.event_size - 19 - 4), |s: &[u8]| {
+        extract_string(s)
+    })(i)?;
+    Ok((i, (file_id, block_data)))
+}
+
+pub fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
+    Ok((
+        i,
+        Event::CreateFile {
+            header,
+            file_id,
+            block_data,
+        },
+    ))
+}
+
+pub fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
+    Ok((
+        i,
+        Event::AppendFile {
+            header,
+            file_id,
+            block_data,
+        },
+    ))
+}
+
+pub fn parse_exec_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    map(le_u16, |file_id: u16| Event::ExecLoad {
+        header: header.clone(),
+        file_id,
+    })(input)
+}
+
+pub fn parse_delete_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    map(le_u16, |file_id: u16| Event::DeleteFile {
+        header: header.clone(),
+        file_id,
+    })(input)
+}
+
+fn extract_from_prev<'a>(input: &'a [u8]) -> IResult<&'a [u8], (u8, String)> {
+    let (i, len) = le_u8(input)?;
+    map(take(len), move |s| (len, extract_n_string(s, len as usize)))(i)
+}
+
+pub fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (thread_id, execution_time, skip_lines, table_name_length, schema_length, num_fields)) =
+        tuple((le_u32, le_u32, le_u32, le_u8, le_u8, le_u32))(input)?;
+    let (i, (field_term_length, field_term)) = extract_from_prev(i)?;
+    let (i, (enclosed_by_length, enclosed_by)) = extract_from_prev(i)?;
+    let (i, (line_term_length, line_term)) = extract_from_prev(i)?;
+    let (i, (line_start_length, line_start)) = extract_from_prev(i)?;
+    let (i, (escaped_by_length, escaped_by)) = extract_from_prev(i)?;
+    let (i, opt_flags) = map(le_u8, |flags| OptFlags {
+        dump_file: (flags >> 0) % 2 == 1,
+        opt_enclosed: (flags >> 1) % 2 == 1,
+        replace: (flags >> 2) % 2 == 1,
+        ignore: (flags >> 3) % 2 == 1,
+    })(i)?;
+    let (i, (field_name_lengths, field_names, table_name, schema_name, file_name)) =
+        extract_many_fields(i, &header, num_fields, table_name_length, schema_length)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::NewLoad {
+            header,
+            thread_id,
+            execution_time,
+            skip_lines,
+            table_name_length,
+            schema_length,
+            num_fields,
+            field_name_lengths,
+            field_term,
+            enclosed_by_length,
+            enclosed_by,
+            line_term_length,
+            line_term,
+            line_start_length,
+            line_start,
+            escaped_by_length,
+            escaped_by,
+            opt_flags,
+            field_term_length,
+            field_names,
+            table_name,
+            schema_name,
+            file_name,
+            checksum,
+        },
+    ))
 }
 
 fn parse_format_desc<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
@@ -211,9 +671,9 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     let (i, table_name) = map(take(table_name_length), |s: &[u8]| extract_string(s))(i)?;
     let (i, term) = le_u8(i)?;
     assert_eq!(term, 0);
-    let (i, column_count) = parse_lenenc_int(i)?;
+    let (i, (_, column_count)) = parse_lenenc_int(i)?;
     let (i, column_type_def) = map(take(column_count), |s: &[u8]| s.to_vec())(i)?;
-    let (i, column_meta_count) = parse_lenenc_int(i)?;
+    let (i, (_, column_meta_count)) = parse_lenenc_int(i)?;
     let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
     let mask_len = (column_count + 8) / 7;
     let (i, null_bit_mask) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
@@ -237,52 +697,73 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     ))
 }
 
-fn parse_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, slave_proxy_id) = le_u32(input)?;
-    let (i, execution_time) = le_u32(i)?;
-    let (i, schema_length) = le_u8(i)?;
-    let (i, error_code) = le_u16(i)?;
-    let (i, status_vars_length) = le_u16(i)?;
-    let (i, raw_vars) = take(status_vars_length)(i)?;
-    let (remain, status_vars) = many0(query::parse_status_var)(raw_vars)?;
-    assert_eq!(remain.len(), 0);
-    let (i, schema) = map(take(schema_length), |s: &[u8]| {
-        String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
+fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, table_id): (&'a [u8], u64) = map(take(6usize), |id_raw: &[u8]| {
+        let mut filled = id_raw.to_vec();
+        filled.extend(vec![0, 0]);
+        pu64(&filled).unwrap().1
+    })(input)?;
+    let (i, flags) = map(le_u16, |flag: u16| wr_v2::Flags {
+        end_of_stmt: (flag >> 0) % 2 == 1,
+        foreign_key_checks: (flag >> 1) % 2 == 0,
+        unique_key_checks: (flag >> 2) % 2 == 0,
+        has_columns: (flag >> 3) % 2 == 0,
     })(i)?;
-    let (i, _) = take(1usize)(i)?;
-    let (i, query) = map(
+    let (i, extra_data_len) = le_u16(i)?;
+    assert!(extra_data_len >= 2);
+    let (i, extra_data) = match extra_data_len {
+        2 => (i, vec![]),
+        _ => many1(wr_v2::parse_extra_data)(i)?,
+    };
+
+    // parse body
+    let (i, (encode_len, column_count)) = parse_lenenc_int(i)?;
+    let (i, column_present_bit_mask) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+
+    // parse row
+    let (i, rows) = map(
         take(
             header.event_size
                 - 19
-                - 4
-                - 4
-                - 1
+                - 6
                 - 2
                 - 2
-                - status_vars_length as u32
-                - schema_length as u32
-                - 1
+                - (extra_data_len as u32 - 2)
+                - encode_len as u32
+                - ((column_count as u32 + 7) / 8)
                 - 4,
         ),
-        |s: &[u8]| extract_string(s),
+        |s: &[u8]| s.to_vec(),
     )(i)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
-        Event::Query {
+        Event::WriteRowV2 {
             header,
-            slave_proxy_id,
-            execution_time,
-            schema_length,
-            error_code,
-            status_vars_length,
-            status_vars,
-            schema,
-            query,
+            table_id,
+            flags,
+            extra_data_len,
+            extra_data,
+            column_count,
+            column_present_bit_mask,
+            rows,
             checksum,
         },
     ))
 }
+
+pub fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (xid, checksum)) = tuple((le_u64, le_u32))(input)?;
+    Ok((
+        i,
+        Event::XID {
+            header,
+            xid,
+            checksum,
+        },
+    ))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -336,6 +817,24 @@ mod test {
                 assert_eq!(mysql_server_version, "5.7.29-log");
                 assert_eq!(create_timestamp, 1593679068);
                 assert_eq!(i.len(), 0);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_xid() {
+        let input: Vec<u8> = vec![
+            170, 157, 253, 94, 16, 123, 0, 0, 0, 31, 0, 0, 0, 71, 3, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0,
+            0, 0, 188, 120, 235, 134,
+        ];
+        let (i, header) = parse_header(&input).unwrap();
+        let (i, e) = parse_xid(i, header).unwrap();
+        match e {
+            Event::XID { xid, checksum, .. } => {
+                assert_eq!(i.len(), 0);
+                assert_eq!(xid, 11);
+                assert_eq!(checksum, 0x86eb78bc);
             }
             _ => unreachable!(),
         }
@@ -463,5 +962,38 @@ mod test {
             checksum: 1424651384,
         }
     );
+    }
+
+    #[test]
+    fn test_write_row_v2() {
+        let input: Vec<u8> = vec![
+            170, 157, 253, 94, 30, 123, 0, 0, 0, 50, 0, 0, 0, 40, 3, 0, 0, 0, 0, 109, 0, 0, 0, 0,
+            0, 1, 0, 2, 0, 4, 255, 240, 1, 0, 0, 0, 2, 0, 120, 100, 2, 103, 115, 226, 200, 15, 201,
+            254, 227, 34,
+        ];
+        let (i, header) = parse_header(&input).unwrap();
+        let (i, e) = parse_write_row_v2(&i, header).unwrap();
+        match e {
+            Event::WriteRowV2 {
+                table_id,
+                flags,
+                checksum,
+                ..
+            } => {
+                assert_eq!(dbg!(i).len(), 0);
+                assert_eq!(table_id, 109);
+                assert_eq!(checksum, 0x22e3fec9);
+                assert_eq!(
+                    flags,
+                    wr_v2::Flags {
+                        end_of_stmt: true,
+                        foreign_key_checks: true,
+                        unique_key_checks: true,
+                        has_columns: true
+                    }
+                )
+            }
+            _ => unreachable!(),
+        }
     }
 }

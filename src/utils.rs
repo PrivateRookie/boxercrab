@@ -6,12 +6,12 @@ use nom::{
 };
 
 // ref: https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], u64> {
+pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
     match input[0] {
-        0..=0xfa => map(le_u8, |num: u8| num as u64)(input),
+        0..=0xfa => map(le_u8, |num: u8| (1, num as u64))(input),
         0xfb | 0xfc => {
             let (i, _) = take(1usize)(input)?;
-            map(le_u16, |num: u16| num as u64)(i)
+            map(le_u16, |num: u16| (3, num as u64))(i)
         }
         0xfd => {
             let (i, _) = take(1usize)(input)?;
@@ -21,11 +21,11 @@ pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], u64> {
                 raw
             })(i)?;
             let (_, num) = pu32(&v).unwrap();
-            Ok((i, num as u64))
+            Ok((i, (4, num as u64)))
         }
         0xfe => {
             let (i, _) = take(1usize)(input)?;
-            le_u64(i)
+            map(le_u64, |v: u64| (9, v))(i)
         }
         0xff => unreachable!(),
     }
@@ -33,7 +33,7 @@ pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], u64> {
 
 // ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 pub fn parse_lenenc_str<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
-    let (i, str_len) = parse_lenenc_int(input)?;
+    let (i, (_, str_len)) = parse_lenenc_int(input)?;
     map(take(str_len), |s: &[u8]| {
         String::from_utf8_lossy(s).to_string()
     })(i)
