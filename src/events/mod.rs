@@ -115,13 +115,13 @@ pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/create-file-event.html
     CreateFile {
         header: Header,
-        file_id: u16,
+        file_id: u32,
         block_data: String,
     },
     // ref: https://dev.mysql.com/doc/internals/en/append-block-event.html
     AppendFile {
         header: Header,
-        file_id: u16,
+        file_id: u32,
         block_data: String,
     },
     // ref: https://dev.mysql.com/doc/internals/en/exec-load-event.html
@@ -163,6 +163,27 @@ pub enum Event {
         file_name: String,
         checksum: u32,
     },
+    // ref: https://dev.mysql.com/doc/internals/en/rand-event.html
+    Rand {
+        header: Header,
+        seed1: u64,
+        seed2: u64,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/user-var-event.html
+    // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L712-L779
+    // TODO ref is broken, skip
+    UserVar {
+        header: Header,
+        // name_length: u32,
+        // name: String,
+        // is_null: bool,
+        // d_type: Option<u8>,
+        // charset: Option<u32>,
+        // value_length: Option<u32>,
+        // value: Option<String>,
+        // flags: Option<u8>,
+        unknown: Vec<u8>,
+    },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L295-L344
     // event_data layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L387-L416
     FormatDesc {
@@ -179,6 +200,24 @@ pub enum Event {
         header: Header,
         xid: u64,
         checksum: u32,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/begin-load-query-event.html
+    BeginLoadQuery {
+        header: Header,
+        file_id: u32,
+        block_data: String,
+    },
+    ExecuteLoadQueryEvent {
+        header: Header,
+        thread_id: u32,
+        execution_time: u32,
+        schema_length: u8,
+        error_code: u16,
+        status_vars_length: u16,
+        file_id: u32,
+        start_pos: u32,
+        end_pos: u32,
+        dup_handling_flags: DupHandlingFlags,
     },
     TableMap {
         header: Header,
@@ -198,6 +237,23 @@ pub enum Event {
         column_meta_def: Vec<u8>,
         null_bit_mask: Vec<u8>,
         checksum: u32,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/incident-event.html
+    Incident {
+        header: Header,
+        d_type: IncidentEventType,
+        message_length: u8,
+        message: String,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/heartbeat-event.html
+    Heartbeat {
+        header: Header,
+    },
+    // ref: https://dev.mysql.com/doc/internals/en/rows-query-event.html
+    RowQuery {
+        header: Header,
+        length: u8,
+        query_text: String,
     },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L932-L991
     AnonymousGtid {
@@ -251,9 +307,16 @@ impl Event {
             0x0a => parse_exec_load(input, header),
             0x0b => parse_delete_file(input, header),
             0x0c => parse_new_load(input, header),
+            0x0d => parse_rand(input, header),
+            0x0e => parse_user_var(input, header),
             0x0f => parse_format_desc(input, header),
             0x10 => parse_xid(input, header),
+            0x11 => parse_begin_load_query(input, header),
+            0x12 => parse_execute_load_query(input, header),
             0x13 => parse_table_map(input, header),
+            0x1a => parse_incident(input, header),
+            0x1b => parse_heartbeat(input, header),
+            0x1d => parse_row_query(input, header),
             0x1e => parse_write_row_v2(input, header),
             0x22 => parse_anonymous_gtid(input, header),
             0x23 => parse_previous_gtids(input, header),
@@ -284,6 +347,19 @@ pub struct OptFlags {
     opt_enclosed: bool,
     replace: bool,
     ignore: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DupHandlingFlags {
+    Error,
+    Ignore,
+    Replace,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum IncidentEventType {
+    None,
+    LostEvents,
 }
 
 fn pu64(input: &[u8]) -> IResult<&[u8], u64> {
@@ -492,8 +568,8 @@ pub fn parse_slave<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     Ok((input, Event::Slave { header }))
 }
 
-fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u16, String)> {
-    let (i, file_id) = le_u16(input)?;
+fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u32, String)> {
+    let (i, file_id) = le_u32(input)?;
     let (i, block_data) = map(take(header.event_size - 19 - 4), |s: &[u8]| {
         extract_string(s)
     })(i)?;
@@ -591,6 +667,23 @@ pub fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     ))
 }
 
+pub fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (seed1, seed2)) = tuple((le_u64, le_u64))(input)?;
+    Ok((
+        i,
+        Event::Rand {
+            header,
+            seed1,
+            seed2,
+        },
+    ))
+}
+
+pub fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, unknown) = map(take(header.event_size - 19), |s: &[u8]| s.to_vec())(input)?;
+    Ok((i, Event::UserVar { header, unknown }))
+}
+
 fn parse_format_desc<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, binlog_version) = le_u16(input)?;
     let (i, mysql_server_version) = map(take(50usize), |s: &[u8]| extract_string(s))(i)?;
@@ -615,43 +708,65 @@ fn parse_format_desc<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], E
     ))
 }
 
-fn parse_anonymous_gtid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, rbr_only) = map(le_u8, |t: u8| t == 0)(input)?;
-    let (i, encoded_sig_length) = le_u32(i)?;
-    let (i, encoded_gno_length) = le_u32(i)?;
-    let (i, unknown) = map(
-        take(header.event_size - 19 - (1 + 4 * 2 + 8 * 2 + 4)),
-        |s: &[u8]| s.to_vec(),
-    )(i)?;
-    let (i, last_committed) = le_i64(i)?;
-    let (i, sequence_number) = le_i64(i)?;
-    let (i, checksum) = le_u32(i)?;
+pub fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (xid, checksum)) = tuple((le_u64, le_u32))(input)?;
     Ok((
         i,
-        Event::AnonymousGtid {
+        Event::XID {
             header,
-            rbr_only,
-            encoded_sig_length,
-            encoded_gno_length,
-            last_committed,
-            sequence_number,
-            unknown,
+            xid,
             checksum,
         },
     ))
 }
 
-fn parse_previous_gtids<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, gtid_sets) = map(take(header.event_size - 19 - 4 - 4), |s: &[u8]| s.to_vec())(input)?;
-    let (i, buf_size) = le_u32(i)?;
-    let (i, checksum) = le_u32(i)?;
+pub fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
     Ok((
         i,
-        Event::PreviousGtids {
+        Event::BeginLoadQuery {
             header,
-            gtid_sets,
-            buf_size,
-            checksum,
+            file_id,
+            block_data,
+        },
+    ))
+}
+
+pub fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (
+        i,
+        (
+            thread_id,
+            execution_time,
+            schema_length,
+            error_code,
+            status_vars_length,
+            file_id,
+            start_pos,
+            end_pos,
+        ),
+    ) = tuple((
+        le_u32, le_u32, le_u8, le_u16, le_u16, le_u32, le_u32, le_u32,
+    ))(input)?;
+    let (i, dup_handling_flags) = map(le_u8, |flags| match flags {
+        0 => DupHandlingFlags::Error,
+        1 => DupHandlingFlags::Ignore,
+        2 => DupHandlingFlags::Replace,
+        _ => unreachable!(),
+    })(i)?;
+    Ok((
+        i,
+        Event::ExecuteLoadQueryEvent {
+            header,
+            thread_id,
+            execution_time,
+            schema_length,
+            error_code,
+            status_vars_length,
+            file_id,
+            start_pos,
+            end_pos,
+            dup_handling_flags,
         },
     ))
 }
@@ -692,6 +807,87 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
             column_type_def,
             column_meta_def,
             null_bit_mask,
+            checksum,
+        },
+    ))
+}
+
+pub fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, d_type) = map(le_u16, |t| match t {
+        0x0000 => IncidentEventType::None,
+        0x0001 => IncidentEventType::LostEvents,
+        _ => unreachable!(),
+    })(input)?;
+    let (i, message_length) = le_u8(i)?;
+    let (i, message) = map(take(message_length), |s: &[u8]| {
+        extract_n_string(s, message_length as usize)
+    })(i)?;
+    Ok((
+        i,
+        Event::Incident {
+            header,
+            d_type,
+            message_length,
+            message,
+        },
+    ))
+}
+
+pub fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    Ok((input, Event::Heartbeat { header }))
+}
+
+pub fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, length) = le_u8(input)?;
+    let (i, query_text) = map(take(length), |s: &[u8]| {
+        extract_n_string(s, length as usize)
+    })(i)?;
+    Ok((
+        i,
+        Event::RowQuery {
+            header,
+            length,
+            query_text,
+        },
+    ))
+}
+
+fn parse_anonymous_gtid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, rbr_only) = map(le_u8, |t: u8| t == 0)(input)?;
+    let (i, encoded_sig_length) = le_u32(i)?;
+    let (i, encoded_gno_length) = le_u32(i)?;
+    let (i, unknown) = map(
+        take(header.event_size - 19 - (1 + 4 * 2 + 8 * 2 + 4)),
+        |s: &[u8]| s.to_vec(),
+    )(i)?;
+    let (i, last_committed) = le_i64(i)?;
+    let (i, sequence_number) = le_i64(i)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::AnonymousGtid {
+            header,
+            rbr_only,
+            encoded_sig_length,
+            encoded_gno_length,
+            last_committed,
+            sequence_number,
+            unknown,
+            checksum,
+        },
+    ))
+}
+
+fn parse_previous_gtids<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, gtid_sets) = map(take(header.event_size - 19 - 4 - 4), |s: &[u8]| s.to_vec())(input)?;
+    let (i, buf_size) = le_u32(i)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::PreviousGtids {
+            header,
+            gtid_sets,
+            buf_size,
             checksum,
         },
     ))
@@ -747,18 +943,6 @@ fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
             column_count,
             column_present_bit_mask,
             rows,
-            checksum,
-        },
-    ))
-}
-
-pub fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, (xid, checksum)) = tuple((le_u64, le_u32))(input)?;
-    Ok((
-        i,
-        Event::XID {
-            header,
-            xid,
             checksum,
         },
     ))
