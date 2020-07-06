@@ -1,5 +1,5 @@
 use super::{pu64, Event, Header};
-use crate::utils::{extract_string, parse_lenenc_int};
+use crate::utils::{extract_string, lenenc_int};
 use nom::{
     bytes::complete::take,
     combinator::map,
@@ -84,40 +84,3 @@ pub fn parse_extra_data<'a>(input: &'a [u8]) -> IResult<&'a [u8], ExtraData> {
     ))
 }
 
-// pub fn parse<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-//     let (i, table_id): (&'a [u8], u64) = map(take(6usize), |id_raw: &[u8]| {
-//         let mut filled = id_raw.to_vec();
-//         filled.extend(vec![0, 0]);
-//         pu64(&filled).unwrap().1
-//     })(input)?;
-//     let (i, flag) = map(le_u16, |flag: u16| {
-//         Flag::try_from(flag).expect(&format!("unexpected flag: {}", flag))
-//     })(i)?;
-//     let (i, extra_data_len) = le_u16(i)?;
-//     assert!(extra_data_len >= 2);
-//     let (i, extra_data_type) = map(le_u8, |t: u8| {
-//         ExtraDataType::try_from(t).expect(&format!("unexpected extra_data_type: {:x}", t))
-//     })(i)?;
-//     // only one type now
-//     assert!(extra_data_type == ExtraDataType::RW_V_EXTRAINFO_TAG);
-//     let (i, length) = le_u8(i)?;
-//     let (i, extra_data_format) = map(le_u8, |f: u8| {
-//         ExtraDataFormat::try_from(f).expect(&format!("unexpected format: {:x}", f))
-//     })(i)?;
-//     let (i, data_payload) = map(take(length), |s: &[u8]| extract_string(s))(i)?;
-//     let extra_data = ExtraData {
-//         _type: extra_data_type,
-//         data: Payload::ExtraDataInfo {
-//             length,
-//             format: extra_data_format,
-//             payload: data_payload
-//         }
-//     };
-//     // parse body
-//     let (i, column_count) = parse_lenenc_int(i)?;
-//     let (i, column_present_bit_mask) = map(take((column_count + 7)/8), |s: &[u8]| s.to_vec())(i)?;
-
-//     // parse row
-//     let (i, null_bit_mask) = map(take(column_present_bit_mask.len()), |s: &[u8]| s.to_vec())(i)?;
-//     let ()
-// }

@@ -5,6 +5,7 @@ use log4rs;
 
 mod events;
 mod utils;
+mod mysql;
 
 fn main() {
     log4rs::init_file("config/log.yaml", Default::default()).unwrap();

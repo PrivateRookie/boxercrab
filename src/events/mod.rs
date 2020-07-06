@@ -1,4 +1,7 @@
-use crate::utils::{extract_n_string, extract_string, parse_lenenc_int, take_till_term_string};
+use crate::{
+    mysql::ColumnTypes,
+    utils::{extract_n_string, extract_string, lenenc_int, string_fixed, take_till_term_string},
+};
 use nom::{
     bytes::complete::{tag, take},
     combinator::map,
@@ -232,10 +235,10 @@ pub enum Event {
         // [00] term sign in layout
         // len encoded integer
         column_count: u64,
-        column_type_def: Vec<u8>,
+        columns_type: Vec<ColumnTypes>,
         // len encoded string
         column_meta_def: Vec<u8>,
-        null_bit_mask: Vec<u8>,
+        null_bits: Vec<u8>,
         checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/incident-event.html
@@ -777,21 +780,24 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
         filled.extend(vec![0, 0]);
         pu64(&filled).unwrap().1
     })(input)?;
+    // Reserved for future use; currently always 0
     let (i, flags) = le_u16(i)?;
-    let (i, schema_length) = le_u8(i)?;
-    let (i, schema) = map(take(schema_length), |s: &[u8]| extract_string(s))(i)?;
+    let (i, (schema_length, schema)) = string_fixed(i)?;
     let (i, term) = le_u8(i)?;
     assert_eq!(term, 0);
-    let (i, table_name_length) = le_u8(i)?;
-    let (i, table_name) = map(take(table_name_length), |s: &[u8]| extract_string(s))(i)?;
+
+    let (i, (table_name_length, table_name)) = string_fixed(i)?;
     let (i, term) = le_u8(i)?;
     assert_eq!(term, 0);
-    let (i, (_, column_count)) = parse_lenenc_int(i)?;
-    let (i, column_type_def) = map(take(column_count), |s: &[u8]| s.to_vec())(i)?;
-    let (i, (_, column_meta_count)) = parse_lenenc_int(i)?;
+    let (i, (_, column_count)) = lenenc_int(i)?;
+    let (i, columns_type) = map(take(column_count), |s: &[u8]| {
+        s.iter().map(|&t| ColumnTypes::from_u8(t)).collect()
+    })(i)?;
+    let (i, (_, column_meta_count)) = lenenc_int(i)?;
     let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
-    let mask_len = (column_count + 8) / 7;
-    let (i, null_bit_mask) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
+    let mask_len = (column_count + 7) / 8 ;
+    dbg!(&mask_len);
+    let (i, null_bits) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -804,9 +810,9 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
             table_name_length,
             table_name,
             column_count,
-            column_type_def,
+            columns_type,
             column_meta_def,
-            null_bit_mask,
+            null_bits,
             checksum,
         },
     ))
@@ -913,7 +919,7 @@ fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     };
 
     // parse body
-    let (i, (encode_len, column_count)) = parse_lenenc_int(i)?;
+    let (i, (encode_len, column_count)) = lenenc_int(i)?;
     let (i, column_present_bit_mask) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
 
     // parse row
@@ -1051,12 +1057,13 @@ mod test {
         let (i, event) = parse_table_map(i, header).unwrap();
         match event {
             Event::TableMap {
-                table_id, schema, ..
+                table_id, schema, checksum, ..
             } => {
                 assert_eq!(i.len(), 0);
                 // TODO do more checks here
                 assert_eq!(table_id, 109);
                 assert_eq!(schema, "test".to_string());
+                assert_eq!(checksum, 0x4435a8c2);
             }
             _ => unreachable!(),
         }

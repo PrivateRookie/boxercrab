@@ -5,8 +5,10 @@ use nom::{
     IResult,
 };
 
-// ref: https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
+/// parse len encoded int, return (used_bytes, value).
+///
+/// ref: https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
+pub fn lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
     match input[0] {
         0..=0xfa => map(le_u8, |num: u8| (1, num as u64))(input),
         0xfb | 0xfc => {
@@ -33,7 +35,7 @@ pub fn parse_lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> 
 
 // ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 pub fn parse_lenenc_str<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
-    let (i, (_, str_len)) = parse_lenenc_int(input)?;
+    let (i, (_, str_len)) = lenenc_int(input)?;
     map(take(str_len), |s: &[u8]| {
         String::from_utf8_lossy(s).to_string()
     })(i)
@@ -68,4 +70,14 @@ pub fn extract_n_string(input: &[u8], len: usize) -> String {
         .unwrap_or(input.len());
     assert_eq!(null_end, len);
     String::from_utf8_lossy(&input[0..null_end]).to_string()
+}
+
+/// parse fixed len string.
+///
+/// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::FixedLengthString
+pub fn string_fixed(input: &[u8]) -> IResult<&[u8], (u8, String)> {
+    let (i, len) = le_u8(input)?;
+    map(take(len), move |s: &[u8]| {
+        (len, String::from_utf8_lossy(s).to_string())
+    })(i)
 }
