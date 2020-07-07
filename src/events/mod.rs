@@ -15,13 +15,27 @@ mod query;
 mod rows;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct EventFlag {
+    in_use: bool,
+    forced_rotate: bool,
+    thread_specific: bool,
+    suppress_use: bool,
+    update_table_map_version: bool,
+    artificial: bool,
+    relay_log: bool,
+    ignorable: bool,
+    no_filter: bool,
+    mts_isolate: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header {
     pub timestamp: u32,
     pub event_type: u8,
     pub server_id: u32,
     pub event_size: u32,
     pub log_pos: u32,
-    pub flags: u16,
+    pub flags: EventFlag,
 }
 
 pub fn parse_header(input: &[u8]) -> IResult<&[u8], Header> {
@@ -30,7 +44,18 @@ pub fn parse_header(input: &[u8]) -> IResult<&[u8], Header> {
     let (i, server_id) = le_u32(i)?;
     let (i, event_size) = le_u32(i)?;
     let (i, log_pos) = le_u32(i)?;
-    let (i, flags) = le_u16(i)?;
+    let (i, flags) = map(le_u16, |f: u16| EventFlag {
+        in_use: (f >> 0) % 2 == 1,
+        forced_rotate: (f >> 1) % 2 == 1,
+        thread_specific: (f >> 2) % 2 == 1,
+        suppress_use: (f >> 3) % 2 == 1,
+        update_table_map_version: (f >> 4) % 2 == 1,
+        artificial: (f >> 5) % 2 == 1,
+        relay_log: (f >> 6) % 2 == 1,
+        ignorable: (f >> 7) % 2 == 1,
+        no_filter: (f >> 8) % 2 == 1,
+        mts_isolate: (f >> 9) % 2 == 1,
+    })(i)?;
     Ok((
         i,
         Header {
