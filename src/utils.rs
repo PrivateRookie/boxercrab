@@ -5,10 +5,32 @@ use nom::{
     IResult,
 };
 
+/// parse fixed len int
+///
+/// ref: https://dev.mysql.com/doc/internals/en/integer.html#fixed-length-integer
+pub fn int_fixed<'a>(input: &'a [u8], len: u8) -> IResult<&'a [u8], u64> {
+    match len {
+        1 => map(le_u8, |v| v as u64)(input),
+        2 => map(le_u16, |v| v as u64)(input),
+        3 | 6 => map(take(3usize), |s: &[u8]| {
+            let mut filled = s.to_vec();
+            if len == 3 {
+                filled.extend(vec![0, 0, 0, 0, 0]);
+            } else {
+                filled.extend(vec![0, 0]);
+            }
+            pu64(&filled).unwrap().1
+        })(input),
+        4 => map(le_u32, |v| v as u64)(input),
+        8 => le_u64(input),
+        _ => unreachable!(),
+    }
+}
+
 /// parse len encoded int, return (used_bytes, value).
 ///
 /// ref: https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-pub fn lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
+pub fn int_lenenc<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
     match input[0] {
         0..=0xfa => map(le_u8, |num: u8| (1, num as u64))(input),
         0xfb | 0xfc => {
@@ -33,19 +55,21 @@ pub fn lenenc_int<'a>(input: &'a [u8]) -> IResult<&'a [u8], (usize, u64)> {
     }
 }
 
-// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
-pub fn parse_lenenc_str<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
-    let (i, (_, str_len)) = lenenc_int(input)?;
+/// parse length encoded string
+///
+/// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
+pub fn string_lenenc<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
+    let (i, (_, str_len)) = int_lenenc(input)?;
     map(take(str_len), |s: &[u8]| {
         String::from_utf8_lossy(s).to_string()
     })(i)
 }
 
-pub fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
-    le_u32(input)
-}
 
-pub fn take_till_term_string(input: &[u8]) -> IResult<&[u8], String> {
+/// parse null terminated string, consume null byte
+///
+/// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::NulTerminatedString
+pub fn string_nul(input: &[u8]) -> IResult<&[u8], String> {
     let (i, ret) = map(take_till(|c: u8| c == 0x00), |s| {
         String::from_utf8_lossy(s).to_string()
     })(input)?;
@@ -63,12 +87,13 @@ pub fn extract_string(input: &[u8]) -> String {
 }
 
 /// extract len bytes string
-pub fn extract_n_string(input: &[u8], len: usize) -> String {
+///
+/// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::VariableLengthString
+pub fn string_var(input: &[u8], len: usize) -> String {
     let null_end = input
         .iter()
         .position(|&c| c == b'\0')
         .unwrap_or(input.len());
-    assert_eq!(null_end, len);
     String::from_utf8_lossy(&input[0..null_end]).to_string()
 }
 
@@ -80,4 +105,12 @@ pub fn string_fixed(input: &[u8]) -> IResult<&[u8], (u8, String)> {
     map(take(len), move |s: &[u8]| {
         (len, String::from_utf8_lossy(s).to_string())
     })(i)
+}
+
+pub fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
+    le_u32(input)
+}
+
+pub fn pu64(input: &[u8]) -> IResult<&[u8], u64> {
+    le_u64(input)
 }

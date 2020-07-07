@@ -1,4 +1,4 @@
-use crate::utils::{extract_n_string, extract_string, pu32, take_till_term_string};
+use crate::utils::{string_var, extract_string, pu32, string_nul};
 use nom::{
     bytes::complete::take,
     combinator::map,
@@ -130,7 +130,7 @@ pub fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar
         }
         0x02 => {
             let (i, len) = le_u8(i)?;
-            let (i, val) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            let (i, val) = map(take(len), |s: &[u8]| string_var(s, len as usize))(i)?;
             let (i, term) = le_u8(i)?;
             assert_eq!(term, 0x00);
             Ok((i, QueryStatusVar::Q_CATALOG(val)))
@@ -160,14 +160,14 @@ pub fn parse_status_var<'a>(input: &'a [u8]) -> IResult<&'a [u8], QueryStatusVar
         0x0a => map(le_u32, |v| QueryStatusVar::Q_MASTER_DATA_WRITTEN_CODE(v))(i),
         0x0b => {
             let (i, len) = le_u8(i)?;
-            let (i, user) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            let (i, user) = map(take(len), |s: &[u8]| string_var(s, len as usize))(i)?;
             let (i, len) = le_u8(i)?;
-            let (i, host) = map(take(len), |s: &[u8]| extract_n_string(s, len as usize))(i)?;
+            let (i, host) = map(take(len), |s: &[u8]| string_var(s, len as usize))(i)?;
             Ok((i, QueryStatusVar::Q_INVOKERS(user, host)))
         }
         0x0c => {
             let (i, count) = le_u8(i)?;
-            let (i, val) = many_m_n(count as usize, count as usize, take_till_term_string)(i)?;
+            let (i, val) = many_m_n(count as usize, count as usize, string_nul)(i)?;
             Ok((i, QueryStatusVar::Q_UPDATED_DB_NAMES(val)))
         }
         0x0d => map(pu32, |val| QueryStatusVar::Q_MICROSECONDS(val))(i),

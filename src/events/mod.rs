@@ -1,6 +1,6 @@
 use crate::{
     mysql::ColumnTypes,
-    utils::{extract_n_string, extract_string, lenenc_int, string_fixed, take_till_term_string},
+    utils::{string_var, extract_string, int_lenenc, string_fixed, string_nul, pu64},
 };
 use nom::{
     bytes::complete::{tag, take},
@@ -418,9 +418,6 @@ pub enum IncidentEventType {
     LostEvents,
 }
 
-fn pu64(input: &[u8]) -> IResult<&[u8], u64> {
-    le_u64(input)
-}
 
 // TODO this function hasn't been tested yet
 pub fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
@@ -485,7 +482,7 @@ pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Ev
     let (i, position) = le_u64(input)?;
     let str_len = header.event_size - 19 - 8;
     let (i, next_binlog) = map(take(str_len), |s: &[u8]| {
-        extract_n_string(i, str_len as usize)
+        string_var(i, str_len as usize)
     })(i)?;
     Ok((
         i,
@@ -528,7 +525,7 @@ fn extract_many_fields<'a>(
     let (i, field_names) = many_m_n(
         num_fields as usize,
         num_fields as usize,
-        take_till_term_string,
+        string_nul,
     )(raw_field_names)?;
     let (i, table_name) = map(take(table_name_length + 1), |s: &[u8]| extract_string(s))(i)?;
     let (i, schema_name) = map(take(schema_length + 1), |s: &[u8]| extract_string(s))(i)?;
@@ -672,7 +669,7 @@ pub fn parse_delete_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8
 
 fn extract_from_prev<'a>(input: &'a [u8]) -> IResult<&'a [u8], (u8, String)> {
     let (i, len) = le_u8(input)?;
-    map(take(len), move |s| (len, extract_n_string(s, len as usize)))(i)
+    map(take(len), move |s| (len, string_var(s, len as usize)))(i)
 }
 
 pub fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
@@ -842,11 +839,11 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     let (i, (table_name_length, table_name)) = string_fixed(i)?;
     let (i, term) = le_u8(i)?;
     assert_eq!(term, 0);
-    let (i, (_, column_count)) = lenenc_int(i)?;
+    let (i, (_, column_count)) = int_lenenc(i)?;
     let (i, columns_type) = map(take(column_count), |s: &[u8]| {
         s.iter().map(|&t| ColumnTypes::from_u8(t)).collect()
     })(i)?;
-    let (i, (_, column_meta_count)) = lenenc_int(i)?;
+    let (i, (_, column_meta_count)) = int_lenenc(i)?;
     let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
     let mask_len = (column_count + 7) / 8;
     dbg!(&mask_len);
@@ -879,7 +876,7 @@ pub fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     })(input)?;
     let (i, message_length) = le_u8(i)?;
     let (i, message) = map(take(message_length), |s: &[u8]| {
-        extract_n_string(s, message_length as usize)
+        string_var(s, message_length as usize)
     })(i)?;
     Ok((
         i,
@@ -899,7 +896,7 @@ pub fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8],
 pub fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, length) = le_u8(input)?;
     let (i, query_text) = map(take(length), |s: &[u8]| {
-        extract_n_string(s, length as usize)
+        string_var(s, length as usize)
     })(i)?;
     Ok((
         i,
@@ -974,7 +971,7 @@ fn parse_half_row<'a>(
     };
 
     // parse body
-    let (i, (encode_len, column_count)) = lenenc_int(i)?;
+    let (i, (encode_len, column_count)) = int_lenenc(i)?;
     Ok((
         i,
         (
