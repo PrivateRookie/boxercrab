@@ -29,6 +29,15 @@ version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "boxercrab"
+version = "0.1.0"
+dependencies = [
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log4rs 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nom 5.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "cfg-if"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -235,15 +244,6 @@ dependencies = [
  "redox_syscall 0.1.56 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "play"
-version = "0.1.0"
-dependencies = [
- "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "log4rs 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nom 5.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

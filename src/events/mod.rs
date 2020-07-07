@@ -12,9 +12,7 @@ use nom::{
 };
 
 mod query;
-mod write_row_v2;
-
-use write_row_v2 as wr_v2;
+mod rows;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Header {
@@ -279,15 +277,42 @@ pub enum Event {
         checksum: u32,
     },
     // source https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/rows_event.h#L488-L613
-    WriteRowV2 {
+    WriteRowsV2 {
         header: Header,
         // table_id take 6 bytes in buffer
         table_id: u64,
-        flags: wr_v2::Flags,
+        flags: rows::Flags,
         extra_data_len: u16,
-        extra_data: Vec<wr_v2::ExtraData>,
+        extra_data: Vec<rows::ExtraData>,
         column_count: u64,
-        column_present_bit_mask: Vec<u8>,
+        inserted_image_bits: Vec<u8>,
+        // FIXME unknown struct field
+        rows: Vec<u8>,
+        checksum: u32,
+    },
+    UpdateRowsV2 {
+        header: Header,
+        // table_id take 6 bytes in buffer
+        table_id: u64,
+        flags: rows::Flags,
+        extra_data_len: u16,
+        extra_data: Vec<rows::ExtraData>,
+        column_count: u64,
+        before_image_bits: Vec<u8>,
+        after_image_bits: Vec<u8>,
+        // FIXME unknown struct field
+        rows: Vec<u8>,
+        checksum: u32,
+    },
+    DeleteRowsV2 {
+        header: Header,
+        // table_id take 6 bytes in buffer
+        table_id: u64,
+        flags: rows::Flags,
+        extra_data_len: u16,
+        extra_data: Vec<rows::ExtraData>,
+        column_count: u64,
+        deleted_image_bits: Vec<u8>,
         // FIXME unknown struct field
         rows: Vec<u8>,
         checksum: u32,
@@ -320,7 +345,10 @@ impl Event {
             0x1a => parse_incident(input, header),
             0x1b => parse_heartbeat(input, header),
             0x1d => parse_row_query(input, header),
-            0x1e => parse_write_row_v2(input, header),
+            0x14..=0x19 => unreachable!(),
+            0x1e => parse_write_rows_v2(input, header),
+            0x1f => parse_update_rows_v2(input, header),
+            0x20 => parse_delete_rows_v2(input, header),
             0x22 => parse_anonymous_gtid(input, header),
             0x23 => parse_previous_gtids(input, header),
             _ => unreachable!(),
@@ -795,7 +823,7 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     })(i)?;
     let (i, (_, column_meta_count)) = lenenc_int(i)?;
     let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
-    let mask_len = (column_count + 7) / 8 ;
+    let mask_len = (column_count + 7) / 8;
     dbg!(&mask_len);
     let (i, null_bits) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, checksum) = le_u32(i)?;
@@ -899,13 +927,15 @@ fn parse_previous_gtids<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8]
     ))
 }
 
-fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_half_row<'a>(
+    input: &'a [u8],
+) -> IResult<&'a [u8], (u64, rows::Flags, u16, Vec<rows::ExtraData>, (usize, u64))> {
     let (i, table_id): (&'a [u8], u64) = map(take(6usize), |id_raw: &[u8]| {
         let mut filled = id_raw.to_vec();
         filled.extend(vec![0, 0]);
         pu64(&filled).unwrap().1
     })(input)?;
-    let (i, flags) = map(le_u16, |flag: u16| wr_v2::Flags {
+    let (i, flags) = map(le_u16, |flag: u16| rows::Flags {
         end_of_stmt: (flag >> 0) % 2 == 1,
         foreign_key_checks: (flag >> 1) % 2 == 0,
         unique_key_checks: (flag >> 2) % 2 == 0,
@@ -915,14 +945,28 @@ fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     assert!(extra_data_len >= 2);
     let (i, extra_data) = match extra_data_len {
         2 => (i, vec![]),
-        _ => many1(wr_v2::parse_extra_data)(i)?,
+        _ => many1(rows::parse_extra_data)(i)?,
     };
 
     // parse body
     let (i, (encode_len, column_count)) = lenenc_int(i)?;
-    let (i, column_present_bit_mask) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+    Ok((
+        i,
+        (
+            table_id,
+            flags,
+            extra_data_len,
+            extra_data,
+            (encode_len, column_count),
+        ),
+    ))
+}
 
-    // parse row
+pub fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
+        parse_half_row(input)?;
+
+    let (i, inserted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
     let (i, rows) = map(
         take(
             header.event_size
@@ -940,14 +984,88 @@ fn parse_write_row_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
-        Event::WriteRowV2 {
+        Event::WriteRowsV2 {
             header,
             table_id,
             flags,
             extra_data_len,
             extra_data,
             column_count,
-            column_present_bit_mask,
+            inserted_image_bits,
+            rows,
+            checksum,
+        },
+    ))
+}
+
+pub fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
+        parse_half_row(input)?;
+
+    let (i, deleted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+    let (i, rows) = map(
+        take(
+            header.event_size
+                - 19
+                - 6
+                - 2
+                - 2
+                - (extra_data_len as u32 - 2)
+                - encode_len as u32
+                - ((column_count as u32 + 7) / 8)
+                - 4,
+        ),
+        |s: &[u8]| s.to_vec(),
+    )(i)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::DeleteRowsV2 {
+            header,
+            table_id,
+            flags,
+            extra_data_len,
+            extra_data,
+            column_count,
+            deleted_image_bits,
+            rows,
+            checksum,
+        },
+    ))
+}
+
+pub fn parse_update_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
+        parse_half_row(input)?;
+
+    let (i, before_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+    let (i, after_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+    let (i, rows) = map(
+        take(
+            header.event_size
+                - 19
+                - 6
+                - 2
+                - 2
+                - (extra_data_len as u32 - 2)
+                - encode_len as u32
+                - ((column_count as u32 + 7) / 8) * 2
+                - 4,
+        ),
+        |s: &[u8]| s.to_vec(),
+    )(i)?;
+    let (i, checksum) = le_u32(i)?;
+    Ok((
+        i,
+        Event::UpdateRowsV2 {
+            header,
+            table_id,
+            flags,
+            extra_data_len,
+            extra_data,
+            column_count,
+            before_image_bits,
+            after_image_bits,
             rows,
             checksum,
         },
@@ -1057,7 +1175,10 @@ mod test {
         let (i, event) = parse_table_map(i, header).unwrap();
         match event {
             Event::TableMap {
-                table_id, schema, checksum, ..
+                table_id,
+                schema,
+                checksum,
+                ..
             } => {
                 assert_eq!(i.len(), 0);
                 // TODO do more checks here
@@ -1163,9 +1284,9 @@ mod test {
             254, 227, 34,
         ];
         let (i, header) = parse_header(&input).unwrap();
-        let (i, e) = parse_write_row_v2(&i, header).unwrap();
+        let (i, e) = parse_write_rows_v2(&i, header).unwrap();
         match e {
-            Event::WriteRowV2 {
+            Event::WriteRowsV2 {
                 table_id,
                 flags,
                 checksum,
@@ -1176,7 +1297,7 @@ mod test {
                 assert_eq!(checksum, 0x22e3fec9);
                 assert_eq!(
                     flags,
-                    wr_v2::Flags {
+                    rows::Flags {
                         end_of_stmt: true,
                         foreign_key_checks: true,
                         unique_key_checks: true,
