@@ -8,3 +8,7 @@ version = "0.1.0"
 log    = "0.4.8"
 log4rs = "0.12.0"
 nom    = "5"
+
+[[bin]]
+name = "main"
+path = "src/cli.rs"

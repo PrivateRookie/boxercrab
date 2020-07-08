@@ -1,11 +1,5 @@
-#![allow(non_camel_case_types)]
-
-use events::{check_start, Event};
+use boxercrab::events::{check_start, Event};
 use log4rs;
-
-mod events;
-mod utils;
-mod mysql;
 
 fn main() {
     log4rs::init_file("config/log.yaml", Default::default()).unwrap();
