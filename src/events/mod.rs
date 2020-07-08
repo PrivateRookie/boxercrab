@@ -1,6 +1,6 @@
 use crate::{
     mysql::ColumnTypes,
-    utils::{string_var, extract_string, int_lenenc, string_fixed, string_nul, pu64},
+    utils::{extract_string, int_lenenc, pu64, string_fixed, string_nul, string_var},
 };
 use nom::{
     bytes::complete::{tag, take},
@@ -418,7 +418,6 @@ pub enum IncidentEventType {
     LostEvents,
 }
 
-
 // TODO this function hasn't been tested yet
 pub fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     map(le_u32, move |checksum: u32| Event::Unknown {
@@ -481,9 +480,7 @@ pub fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
 pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, position) = le_u64(input)?;
     let str_len = header.event_size - 19 - 8;
-    let (i, next_binlog) = map(take(str_len), |s: &[u8]| {
-        string_var(i, str_len as usize)
-    })(i)?;
+    let (i, next_binlog) = map(take(str_len), |s: &[u8]| string_var(i, str_len as usize))(i)?;
     Ok((
         i,
         Event::Rotate {
@@ -522,11 +519,8 @@ fn extract_many_fields<'a>(
     let (i, field_name_lengths) = map(take(num_fields), |s: &[u8]| s.to_vec())(input)?;
     let total_len: u64 = field_name_lengths.iter().sum::<u8>() as u64 + num_fields as u64;
     let (i, raw_field_names) = take(total_len)(i)?;
-    let (i, field_names) = many_m_n(
-        num_fields as usize,
-        num_fields as usize,
-        string_nul,
-    )(raw_field_names)?;
+    let (i, field_names) =
+        many_m_n(num_fields as usize, num_fields as usize, string_nul)(raw_field_names)?;
     let (i, table_name) = map(take(table_name_length + 1), |s: &[u8]| extract_string(s))(i)?;
     let (i, schema_name) = map(take(schema_length + 1), |s: &[u8]| extract_string(s))(i)?;
     let (i, file_name) = map(
@@ -895,9 +889,7 @@ pub fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8],
 
 pub fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, length) = le_u8(input)?;
-    let (i, query_text) = map(take(length), |s: &[u8]| {
-        string_var(s, length as usize)
-    })(i)?;
+    let (i, query_text) = map(take(length), |s: &[u8]| string_var(s, length as usize))(i)?;
     Ok((
         i,
         Event::RowQuery {
@@ -1100,13 +1092,8 @@ mod test {
 
     #[test]
     fn test_anonymous_gtids() {
-        use super::parse_header;
-        let input: Vec<u8> = vec![
-            54, 157, 253, 94, 34, 123, 0, 0, 0, 65, 0, 0, 0, 219, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-            0, 0, 0, 0, 0, 0, 0, 10, 21, 198, 18,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/anonymous_gtids1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, event) = parse_anonymous_gtid(i, header).unwrap();
         match event {
             Event::AnonymousGtid {
@@ -1127,14 +1114,8 @@ mod test {
     #[test]
     fn test_format_desc() {
         use super::parse_header;
-        let input: Vec<u8> = vec![
-            220, 156, 253, 94, 15, 123, 0, 0, 0, 119, 0, 0, 0, 123, 0, 0, 0, 1, 0, 4, 0, 53, 46,
-            55, 46, 50, 57, 45, 108, 111, 103, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 220, 156, 253, 94,
-            19, 56, 13, 0, 8, 0, 18, 0, 4, 4, 4, 4, 18, 0, 0, 95, 0, 4, 26, 8, 0, 0, 0, 8, 8, 8, 2,
-            0, 0, 0, 10, 10, 10, 42, 42, 0, 18, 52, 0, 1, 207, 88, 126, 238,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/format_desc1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, event) = parse_format_desc(i, header).unwrap();
         match event {
             Event::FormatDesc {
@@ -1154,11 +1135,8 @@ mod test {
 
     #[test]
     fn test_xid() {
-        let input: Vec<u8> = vec![
-            170, 157, 253, 94, 16, 123, 0, 0, 0, 31, 0, 0, 0, 71, 3, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0,
-            0, 0, 188, 120, 235, 134,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/xid1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, e) = parse_xid(i, header).unwrap();
         match e {
             Event::XID { xid, checksum, .. } => {
@@ -1174,11 +1152,8 @@ mod test {
     fn test_previous_gtids() {
         use super::parse_header;
 
-        let input: Vec<u8> = vec![
-            220, 156, 253, 94, 35, 123, 0, 0, 0, 31, 0, 0, 0, 154, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 82, 75, 196, 253,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/previous_gtids1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, _) = parse_previous_gtids(i, header).unwrap();
         assert_eq!(i.len(), 0);
         // TODO do more parse
@@ -1188,12 +1163,8 @@ mod test {
     fn test_table_map() {
         use super::parse_header;
 
-        let input: Vec<u8> = vec![
-            170, 157, 253, 94, 19, 123, 0, 0, 0, 60, 0, 0, 0, 246, 2, 0, 0, 0, 0, 109, 0, 0, 0, 0,
-            0, 1, 0, 4, 116, 101, 115, 116, 0, 10, 114, 117, 110, 111, 111, 98, 95, 116, 98, 108,
-            0, 4, 3, 15, 15, 10, 4, 44, 1, 120, 0, 8, 194, 168, 53, 68,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/table_map1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, event) = parse_table_map(i, header).unwrap();
         match event {
             Event::TableMap {
@@ -1216,25 +1187,8 @@ mod test {
     fn test_query() {
         use super::parse_header;
 
-        let input: Vec<u8> = vec![
-            54, 157, 253, 94, 2, 123, 0, 0, 0, 78, 1, 0, 0, 41, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0,
-            0, 4, 0, 0, 33, 0, 0, 0, 0, 0, 0, 1, 32, 0, 160, 85, 0, 0, 0, 0, 6, 3, 115, 116, 100,
-            4, 33, 0, 33, 0, 224, 0, 12, 1, 116, 101, 115, 116, 0, 116, 101, 115, 116, 0, 67, 82,
-            69, 65, 84, 69, 32, 84, 65, 66, 76, 69, 32, 73, 70, 32, 78, 79, 84, 32, 69, 88, 73, 83,
-            84, 83, 32, 96, 114, 117, 110, 111, 111, 98, 95, 116, 98, 108, 96, 40, 10, 32, 32, 32,
-            96, 114, 117, 110, 111, 111, 98, 95, 105, 100, 96, 32, 73, 78, 84, 32, 85, 78, 83, 73,
-            71, 78, 69, 68, 32, 65, 85, 84, 79, 95, 73, 78, 67, 82, 69, 77, 69, 78, 84, 44, 10, 32,
-            32, 32, 96, 114, 117, 110, 111, 111, 98, 95, 116, 105, 116, 108, 101, 96, 32, 86, 65,
-            82, 67, 72, 65, 82, 40, 49, 48, 48, 41, 32, 78, 79, 84, 32, 78, 85, 76, 76, 44, 10, 32,
-            32, 32, 96, 114, 117, 110, 111, 111, 98, 95, 97, 117, 116, 104, 111, 114, 96, 32, 86,
-            65, 82, 67, 72, 65, 82, 40, 52, 48, 41, 32, 78, 79, 84, 32, 78, 85, 76, 76, 44, 10, 32,
-            32, 32, 96, 115, 117, 98, 109, 105, 115, 115, 105, 111, 110, 95, 100, 97, 116, 101, 96,
-            32, 68, 65, 84, 69, 44, 10, 32, 32, 32, 80, 82, 73, 77, 65, 82, 89, 32, 75, 69, 89, 32,
-            40, 32, 96, 114, 117, 110, 111, 111, 98, 95, 105, 100, 96, 32, 41, 10, 41, 69, 78, 71,
-            73, 78, 69, 61, 73, 110, 110, 111, 68, 66, 32, 68, 69, 70, 65, 85, 76, 84, 32, 67, 72,
-            65, 82, 83, 69, 84, 61, 117, 116, 102, 56, 120, 116, 234, 84,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/query1.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, event) = parse_query(i, header.clone()).unwrap();
         assert_eq!(i.len(), 0);
         assert_eq!(
@@ -1300,12 +1254,8 @@ mod test {
 
     #[test]
     fn test_write_row_v2() {
-        let input: Vec<u8> = vec![
-            170, 157, 253, 94, 30, 123, 0, 0, 0, 50, 0, 0, 0, 40, 3, 0, 0, 0, 0, 109, 0, 0, 0, 0,
-            0, 1, 0, 2, 0, 4, 255, 240, 1, 0, 0, 0, 2, 0, 120, 100, 2, 103, 115, 226, 200, 15, 201,
-            254, 227, 34,
-        ];
-        let (i, header) = parse_header(&input).unwrap();
+        let input = include_bytes!("../../tests/bin_files/write_rows_v21.bin");
+        let (i, header) = parse_header(input).unwrap();
         let (i, e) = parse_write_rows_v2(&i, header).unwrap();
         match e {
             Event::WriteRowsV2 {
