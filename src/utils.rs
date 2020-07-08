@@ -65,7 +65,6 @@ pub fn string_lenenc<'a>(input: &'a [u8]) -> IResult<&'a [u8], String> {
     })(i)
 }
 
-
 /// parse null terminated string, consume null byte
 ///
 /// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::NulTerminatedString
@@ -90,11 +89,11 @@ pub fn extract_string(input: &[u8]) -> String {
 ///
 /// ref: https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::VariableLengthString
 pub fn string_var(input: &[u8], len: usize) -> String {
-    let null_end = input
-        .iter()
-        .position(|&c| c == b'\0')
-        .unwrap_or(input.len());
-    String::from_utf8_lossy(&input[0..null_end]).to_string()
+    if input.len() <= len {
+        String::from_utf8_lossy(&input).to_string()
+    } else {
+        String::from_utf8_lossy(&input[0..len]).to_string()
+    }
 }
 
 /// parse fixed len string.

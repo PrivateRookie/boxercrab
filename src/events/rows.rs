@@ -1,11 +1,5 @@
-use super::{pu64, Event, Header};
-use crate::utils::{extract_string, int_lenenc};
-use nom::{
-    bytes::complete::take,
-    combinator::map,
-    number::complete::{le_u16, le_u8},
-    IResult,
-};
+use crate::utils::extract_string;
+use nom::{bytes::complete::take, combinator::map, number::complete::le_u8, IResult};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Flags {
@@ -83,4 +77,3 @@ pub fn parse_extra_data<'a>(input: &'a [u8]) -> IResult<&'a [u8], ExtraData> {
         },
     ))
 }
-

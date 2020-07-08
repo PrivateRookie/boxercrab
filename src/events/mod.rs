@@ -480,7 +480,7 @@ pub fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
 pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, position) = le_u64(input)?;
     let str_len = header.event_size - 19 - 8;
-    let (i, next_binlog) = map(take(str_len), |s: &[u8]| string_var(i, str_len as usize))(i)?;
+    let (i, next_binlog) = map(take(str_len), |s: &[u8]| string_var(s, str_len as usize))(i)?;
     Ok((
         i,
         Event::Rotate {
@@ -519,7 +519,7 @@ fn extract_many_fields<'a>(
     let (i, field_name_lengths) = map(take(num_fields), |s: &[u8]| s.to_vec())(input)?;
     let total_len: u64 = field_name_lengths.iter().sum::<u8>() as u64 + num_fields as u64;
     let (i, raw_field_names) = take(total_len)(i)?;
-    let (i, field_names) =
+    let (_, field_names) =
         many_m_n(num_fields as usize, num_fields as usize, string_nul)(raw_field_names)?;
     let (i, table_name) = map(take(table_name_length + 1), |s: &[u8]| extract_string(s))(i)?;
     let (i, schema_name) = map(take(schema_length + 1), |s: &[u8]| extract_string(s))(i)?;
