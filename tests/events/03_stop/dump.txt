@@ -1,0 +1,39 @@
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#200709 16:02:53 server id 1  end_log_pos 123 CRC32 0xa4311885 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#        4 ad 3f 07 5f   0f   01 00 00 00   77 00 00 00   7b 00 00 00   00 00
+#       17 04 00 35 2e 37 2e 33 30  2d 6c 6f 67 00 00 00 00 |..5.7.30.log....|
+#       27 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       37 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       47 00 00 00 00 ad 3f 07 5f  13 38 0d 00 08 00 12 00 |.........8......|
+#       57 04 04 04 04 12 00 00 5f  00 04 1a 08 00 00 00 08 |................|
+#       67 08 08 02 00 00 00 0a 0a  0a 2a 2a 00 12 34 00 01 |.............4..|
+#       77 85 18 31 a4                                      |..1.|
+# 	Start: binlog v 4, server v 5.7.30-log created 200709 16:02:53 at startup
+ROLLBACK/*!*/;
+BINLOG '
+rT8HXw8BAAAAdwAAAHsAAAAAAAQANS43LjMwLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAACtPwdfEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+AYUYMaQ=
+'/*!*/;
+# at 123
+#200709 16:02:53 server id 1  end_log_pos 154 CRC32 0x43729447 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       7b ad 3f 07 5f   23   01 00 00 00   1f 00 00 00   9a 00 00 00   80 00
+#       8e 00 00 00 00 00 00 00 00  47 94 72 43             |........G.rC|
+# 	Previous-GTIDs
+# [empty]
+# at 154
+#200709 16:02:53 server id 1  end_log_pos 177 CRC32 0x2a9bb50f 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       9a ad 3f 07 5f   03   01 00 00 00   17 00 00 00   b1 00 00 00   00 00
+#       ad 0f b5 9b 2a                                      |....|
+# 	Stop
+SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
+DELIMITER ;
+# End of log file
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
