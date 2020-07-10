@@ -281,14 +281,23 @@ pub enum Event {
         length: u8,
         query_text: String,
     },
-    // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L932-L991
+    // https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L1048-L1056
+    Gtid {
+        header: Header,
+        rbr_only: bool,
+        source_id: String,
+        transaction_id: String,
+        ts_type: u8,
+        last_committed: i64,
+        sequence_number: i64,
+        checksum: u32,
+    },
     AnonymousGtid {
         header: Header,
         rbr_only: bool,
-        encoded_sig_length: u32,
-        encoded_gno_length: u32,
-        // FIXME unknown fields
-        unknown: Vec<u8>,
+        source_id: String,
+        transaction_id: String,
+        ts_type: u8,
         last_committed: i64,
         sequence_number: i64,
         checksum: u32,
@@ -374,6 +383,7 @@ impl Event {
             0x1e => parse_write_rows_v2(input, header),
             0x1f => parse_update_rows_v2(input, header),
             0x20 => parse_delete_rows_v2(input, header),
+            0x21 => parse_gtid(input, header),
             0x22 => parse_anonymous_gtid(input, header),
             0x23 => parse_previous_gtids(input, header),
             _ => unreachable!(),
@@ -423,7 +433,6 @@ pub enum IncidentEventType {
     LostEvents,
 }
 
-// TODO this function hasn't been tested yet
 fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     map(le_u32, move |checksum: u32| Event::Unknown {
         header: header.clone(),
@@ -905,30 +914,105 @@ fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     ))
 }
 
-fn parse_anonymous_gtid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_events_gtid<'a>(
+    input: &'a [u8],
+) -> IResult<&'a [u8], (bool, String, String, u8, i64, i64, u32)> {
     let (i, rbr_only) = map(le_u8, |t: u8| t == 0)(input)?;
-    let (i, encoded_sig_length) = le_u32(i)?;
-    let (i, encoded_gno_length) = le_u32(i)?;
-    let (i, unknown) = map(
-        take(header.event_size - 19 - (1 + 4 * 2 + 8 * 2 + 4)),
-        |s: &[u8]| s.to_vec(),
-    )(i)?;
+    let (i, source_id) = map(take(16usize), |s: &[u8]| {
+        format!(
+            "{}-{}-{}-{}-{}",
+            s[..4].iter().fold(String::new(), |mut acc, i| {
+                acc.push_str(&i.to_string());
+                acc
+            }),
+            s[4..6].iter().fold(String::new(), |mut acc, i| {
+                acc.push_str(&i.to_string());
+                acc
+            }),
+            s[6..8].iter().fold(String::new(), |mut acc, i| {
+                acc.push_str(&i.to_string());
+                acc
+            }),
+            s[8..10].iter().fold(String::new(), |mut acc, i| {
+                acc.push_str(&i.to_string());
+                acc
+            }),
+            s[10..].iter().fold(String::new(), |mut acc, i| {
+                acc.push_str(&i.to_string());
+                acc
+            }),
+        )
+    })(i)?;
+    let (i, transaction_id) = map(take(8usize), |s: &[u8]| {
+        s.iter().fold(String::new(), |mut acc, i| {
+            acc.push_str(&i.to_string());
+            acc
+        })
+    })(i)?;
+    let (i, ts_type) = le_u8(i)?;
     let (i, last_committed) = le_i64(i)?;
     let (i, sequence_number) = le_i64(i)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
-        Event::AnonymousGtid {
-            header,
+        (
             rbr_only,
-            encoded_sig_length,
-            encoded_gno_length,
+            source_id,
+            transaction_id,
+            ts_type,
             last_committed,
             sequence_number,
-            unknown,
+            checksum,
+        ),
+    ))
+}
+
+fn parse_anonymous_gtid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    map(
+        parse_events_gtid,
+        |(
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
+            checksum,
+        )| Event::AnonymousGtid {
+            header: header.clone(),
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
             checksum,
         },
-    ))
+    )(input)
+}
+
+fn parse_gtid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+    map(
+        parse_events_gtid,
+        |(
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
+            checksum,
+        )| Event::Gtid {
+            header: header.clone(),
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
+            checksum,
+        },
+    )(input)
 }
 
 fn parse_previous_gtids<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
