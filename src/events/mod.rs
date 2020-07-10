@@ -379,6 +379,11 @@ impl Event {
             _ => unreachable!(),
         }
     }
+
+    pub fn from_bytes<'a>(input: &'a [u8]) -> IResult<&'a [u8], Vec<Event>> {
+        let (i, _) = check_start(input)?;
+        many1(Self::parse)(i)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -419,7 +424,7 @@ pub enum IncidentEventType {
 }
 
 // TODO this function hasn't been tested yet
-pub fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_unknown<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     map(le_u32, move |checksum: u32| Event::Unknown {
         header: header.clone(),
         checksum,
@@ -473,11 +478,11 @@ fn parse_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> 
     ))
 }
 
-pub fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     Ok((input, Event::Stop { header }))
 }
 
-pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, position) = le_u64(input)?;
     let str_len = header.event_size - 19 - 8;
     let (i, next_binlog) = map(take(str_len), |s: &[u8]| string_var(s, str_len as usize))(i)?;
@@ -491,7 +496,7 @@ pub fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Ev
     ))
 }
 
-pub fn parse_intvar<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_intvar<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, e_type) = map(le_u8, |t: u8| match t {
         0x00 => IntVarEventType::InvalidIntEvent,
         0x01 => IntVarEventType::LastInsertIdEvent,
@@ -549,7 +554,7 @@ fn extract_many_fields<'a>(
     ))
 }
 
-pub fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (
         i,
         (
@@ -611,7 +616,7 @@ pub fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
     ))
 }
 
-pub fn parse_slave<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_slave<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     Ok((input, Event::Slave { header }))
 }
 
@@ -623,7 +628,7 @@ fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u
     Ok((i, (file_id, block_data)))
 }
 
-pub fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
     Ok((
         i,
@@ -635,7 +640,7 @@ pub fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8
     ))
 }
 
-pub fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
     Ok((
         i,
@@ -647,14 +652,14 @@ pub fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8
     ))
 }
 
-pub fn parse_exec_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_exec_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     map(le_u16, |file_id: u16| Event::ExecLoad {
         header: header.clone(),
         file_id,
     })(input)
 }
 
-pub fn parse_delete_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_delete_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     map(le_u16, |file_id: u16| Event::DeleteFile {
         header: header.clone(),
         file_id,
@@ -666,7 +671,7 @@ fn extract_from_prev<'a>(input: &'a [u8]) -> IResult<&'a [u8], (u8, String)> {
     map(take(len), move |s| (len, string_var(s, len as usize)))(i)
 }
 
-pub fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (thread_id, execution_time, skip_lines, table_name_length, schema_length, num_fields)) =
         tuple((le_u32, le_u32, le_u32, le_u8, le_u8, le_u32))(input)?;
     let (i, (field_term_length, field_term)) = extract_from_prev(i)?;
@@ -714,7 +719,7 @@ pub fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     ))
 }
 
-pub fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (seed1, seed2)) = tuple((le_u64, le_u64))(input)?;
     Ok((
         i,
@@ -726,7 +731,7 @@ pub fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
     ))
 }
 
-pub fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, unknown) = map(take(header.event_size - 19), |s: &[u8]| s.to_vec())(input)?;
     Ok((i, Event::UserVar { header, unknown }))
 }
@@ -755,7 +760,7 @@ fn parse_format_desc<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], E
     ))
 }
 
-pub fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (xid, checksum)) = tuple((le_u64, le_u32))(input)?;
     Ok((
         i,
@@ -767,7 +772,7 @@ pub fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event
     ))
 }
 
-pub fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
     Ok((
         i,
@@ -779,7 +784,7 @@ pub fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'
     ))
 }
 
-pub fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (
         i,
         (
@@ -862,7 +867,7 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     ))
 }
 
-pub fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, d_type) = map(le_u16, |t| match t {
         0x0000 => IncidentEventType::None,
         0x0001 => IncidentEventType::LostEvents,
@@ -883,11 +888,11 @@ pub fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], 
     ))
 }
 
-pub fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     Ok((input, Event::Heartbeat { header }))
 }
 
-pub fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, length) = le_u8(input)?;
     let (i, query_text) = map(take(length), |s: &[u8]| string_var(s, length as usize))(i)?;
     Ok((
@@ -976,7 +981,7 @@ fn parse_half_row<'a>(
     ))
 }
 
-pub fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_half_row(input)?;
 
@@ -1012,7 +1017,7 @@ pub fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [
     ))
 }
 
-pub fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_half_row(input)?;
 
@@ -1048,7 +1053,7 @@ pub fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a 
     ))
 }
 
-pub fn parse_update_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_update_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_half_row(input)?;
 
