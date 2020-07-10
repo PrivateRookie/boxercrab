@@ -8,9 +8,25 @@ then
     echo "target dir is required!"
     exit 1
 else
-    mysql_exec "echo reset master"
-    mysql_exec "cat ${PREFIX}/${1}/sql.sql"
-    mysql_exec "echo flush logs"
-    dump_binlog ${PREFIX}/${1}/dump.txt
-    cp_binlog ${PREFIX}/${1}/log.bin
+    target_dir=${PREFIX}/${1}
+    if [ -f ${target_dir}/exec.sh ]
+    then
+        echo ==========================================
+        echo
+        echo "running ${target_dir}/exec.sh"
+        echo
+        echo ==========================================
+        source ${target_dir}/exec.sh
+    else
+        echo ==========================================
+        echo
+        echo "running ${target_dir}/sql.sh"
+        echo
+        echo ==========================================
+        mysql_exec "echo reset master" 2> /dev/null
+        mysql_exec "cat ${target_dir}/sql.sql" 2> /dev/null
+        mysql_exec "echo flush logs" 2> /dev/null
+        dump_binlog ${target_dir}/dump.txt
+        cp_binlog ${target_dir}/log.bin
+    fi
 fi
