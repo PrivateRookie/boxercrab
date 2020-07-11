@@ -197,18 +197,17 @@ pub enum Event {
     },
     // ref: https://dev.mysql.com/doc/internals/en/user-var-event.html
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L712-L779
-    // TODO ref is broken, skip
+    // NOTE ref is broken !!!
     UserVar {
         header: Header,
-        // name_length: u32,
-        // name: String,
-        // is_null: bool,
-        // d_type: Option<u8>,
-        // charset: Option<u32>,
-        // value_length: Option<u32>,
-        // value: Option<String>,
-        // flags: Option<u8>,
-        unknown: Vec<u8>,
+        name_length: u32,
+        name: String,
+        is_null: bool,
+        d_type: Option<u8>,
+        charset: Option<u32>,
+        value_length: Option<u32>,
+        value: Option<Vec<u8>>,
+        flags: Option<u8>,
     },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L295-L344
     // event_data layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L387-L416
@@ -232,6 +231,7 @@ pub enum Event {
         header: Header,
         file_id: u32,
         block_data: String,
+        checksum: u32,
     },
     ExecuteLoadQueryEvent {
         header: Header,
@@ -244,6 +244,7 @@ pub enum Event {
         start_pos: u32,
         end_pos: u32,
         dup_handling_flags: DupHandlingFlags,
+        checksum: u32,
     },
     TableMap {
         header: Header,
@@ -270,6 +271,7 @@ pub enum Event {
         d_type: IncidentEventType,
         message_length: u8,
         message: String,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/heartbeat-event.html
     Heartbeat {
@@ -280,6 +282,7 @@ pub enum Event {
         header: Header,
         length: u8,
         query_text: String,
+        checksum: u32,
     },
     // https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L1048-L1056
     Gtid {
@@ -741,8 +744,47 @@ fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
 }
 
 fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, unknown) = map(take(header.event_size - 19), |s: &[u8]| s.to_vec())(input)?;
-    Ok((i, Event::UserVar { header, unknown }))
+    let (i, name_length) = le_u32(input)?;
+    let (i, name) = map(take(name_length), |s: &[u8]| {
+        string_var(s, name_length as usize)
+    })(i)?;
+    let (i, is_null) = map(le_u8, |v| v == 1)(i)?;
+    if is_null {
+        Ok((
+            i,
+            Event::UserVar {
+                header,
+                name_length,
+                name,
+                is_null,
+                d_type: None,
+                charset: None,
+                value_length: None,
+                value: None,
+                flags: None,
+            },
+        ))
+    } else {
+        let (i, d_type) = map(le_u8, |v| Some(v))(i)?;
+        let (i, charset) = map(le_u32, |v| Some(v))(i)?;
+        let (i, value_length) = le_u32(i)?;
+        let (i, value) = map(take(value_length), |s: &[u8]| Some(s.to_vec()))(i)?;
+        let (i, flags) = map(le_u8, |v| Some(v))(i)?;
+        Ok((
+            i,
+            Event::UserVar {
+                header,
+                name,
+                name_length,
+                is_null,
+                d_type,
+                charset,
+                value_length: Some(value_length),
+                value,
+                flags,
+            },
+        ))
+    }
 }
 
 fn parse_format_desc<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
@@ -783,12 +825,14 @@ fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
 
 fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
+    let (i, checksum) = le_u32(i)?;
     Ok((
         i,
         Event::BeginLoadQuery {
             header,
             file_id,
             block_data,
+            checksum,
         },
     ))
 }
@@ -815,6 +859,7 @@ fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a 
         2 => DupHandlingFlags::Replace,
         _ => unreachable!(),
     })(i)?;
+    let (i, checksum) = le_u32(i)?;
     Ok((
         i,
         Event::ExecuteLoadQueryEvent {
@@ -828,6 +873,7 @@ fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a 
             start_pos,
             end_pos,
             dup_handling_flags,
+            checksum,
         },
     ))
 }
@@ -886,6 +932,7 @@ fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
     let (i, message) = map(take(message_length), |s: &[u8]| {
         string_var(s, message_length as usize)
     })(i)?;
+    let (i, checksum) = le_u32(i)?;
     Ok((
         i,
         Event::Incident {
@@ -893,6 +940,7 @@ fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
             d_type,
             message_length,
             message,
+            checksum,
         },
     ))
 }
@@ -904,12 +952,14 @@ fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
 fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, length) = le_u8(input)?;
     let (i, query_text) = map(take(length), |s: &[u8]| string_var(s, length as usize))(i)?;
+    let (i, checksum) = le_u32(i)?;
     Ok((
         i,
         Event::RowQuery {
             header,
             length,
             query_text,
+            checksum,
         },
     ))
 }
