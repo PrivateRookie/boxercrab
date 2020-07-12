@@ -10,11 +10,12 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use serde::Serialize;
 
 mod query;
 mod rows;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct EventFlag {
     in_use: bool,
     forced_rotate: bool,
@@ -28,7 +29,7 @@ pub struct EventFlag {
     mts_isolate: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct Header {
     pub timestamp: u32,
     pub event_type: u8,
@@ -73,7 +74,7 @@ pub fn check_start(i: &[u8]) -> IResult<&[u8], &[u8]> {
     tag([254, 98, 105, 110])(i)
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/ignored-events.html#unknown-event
     Unknown {
@@ -308,7 +309,7 @@ pub enum Event {
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L1073-L1103
     PreviousGtids {
         header: Header,
-        // FIXME this field may be wrong
+        // TODO do more specify parse
         gtid_sets: Vec<u8>,
         buf_size: u32,
         checksum: u32,
@@ -399,14 +400,14 @@ impl Event {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum IntVarEventType {
     InvalidIntEvent,
     LastInsertIdEvent,
     InsertIdEvent,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct EmptyFlags {
     field_term_empty: bool,
     enclosed_empty: bool,
@@ -415,7 +416,7 @@ pub struct EmptyFlags {
     escape_empty: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct OptFlags {
     dump_file: bool,
     opt_enclosed: bool,
@@ -423,14 +424,14 @@ pub struct OptFlags {
     ignore: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum DupHandlingFlags {
     Error,
     Ignore,
     Replace,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum IncidentEventType {
     None,
     LostEvents,
@@ -900,7 +901,6 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     let (i, (_, column_meta_count)) = int_lenenc(i)?;
     let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
     let mask_len = (column_count + 7) / 8;
-    dbg!(&mask_len);
     let (i, null_bits) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
@@ -1403,7 +1403,7 @@ mod test {
                 checksum,
                 ..
             } => {
-                assert_eq!(dbg!(i).len(), 0);
+                assert_eq!(i.len(), 0);
                 assert_eq!(table_id, 109);
                 assert_eq!(checksum, 0x22e3fec9);
                 assert_eq!(

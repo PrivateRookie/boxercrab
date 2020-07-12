@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
 pub enum ColumnTypes {
     Decimal,
     Tiny,

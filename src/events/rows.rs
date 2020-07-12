@@ -1,7 +1,8 @@
 use crate::utils::extract_string;
 use nom::{bytes::complete::take, combinator::map, number::complete::le_u8, IResult};
+use serde::Serialize;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct Flags {
     pub end_of_stmt: bool,
     pub foreign_key_checks: bool,
@@ -9,18 +10,18 @@ pub struct Flags {
     pub has_columns: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct ExtraData {
     pub d_type: ExtraDataType,
     pub data: Payload,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum ExtraDataType {
     RW_V_EXTRAINFO_TAG = 0x00,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum Payload {
     ExtraDataInfo {
         length: u8,
@@ -29,7 +30,7 @@ pub enum Payload {
     },
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[repr(u8)]
 pub enum ExtraDataFormat {
     NDB = 0x00,
@@ -38,7 +39,7 @@ pub enum ExtraDataFormat {
     MULTI = 0xff,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct Row {
     pub null_bit_mask: Vec<u8>,
     pub values: Vec<u8>,
@@ -59,7 +60,6 @@ pub fn parse_extra_data<'a>(input: &'a [u8]) -> IResult<&'a [u8], ExtraData> {
         0x41 => ExtraDataFormat::OPEN2,
         0xff => ExtraDataFormat::MULTI,
         _ => {
-            dbg!(&fmt);
             log::error!("unknown extract data format {}", fmt);
             unreachable!()
         }

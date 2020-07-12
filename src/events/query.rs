@@ -7,8 +7,9 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use serde::Serialize;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub enum QueryStatusVar {
     Q_FLAGS2_CODE(Q_FLAGS2_CODE_VAL),
     Q_SQL_MODE_CODE(Q_SQL_MODE_CODE_VAL),
@@ -27,7 +28,7 @@ pub enum QueryStatusVar {
     Q_MICROSECONDS(u32),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct Q_FLAGS2_CODE_VAL {
     pub auto_is_null: bool,
     pub auto_commit: bool,
@@ -35,7 +36,7 @@ pub struct Q_FLAGS2_CODE_VAL {
     pub unique_checks: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct Q_SQL_MODE_CODE_VAL {
     pub real_as_float: bool,
     pub pipes_as_concat: bool,
