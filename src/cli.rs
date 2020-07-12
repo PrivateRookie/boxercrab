@@ -6,22 +6,22 @@ use structopt::{clap::arg_enum, StructOpt};
 #[derive(Debug, StructOpt)]
 #[structopt(name = "boxercrab-cli", about = "MySQL binlog tool impl with Rust")]
 enum Args {
-    /// transform a binlog file to specified format
+    /// Transform a binlog file to specified format
     Serde {
-        /// binlog file path
+        /// Binlog file path
         input: String,
 
-        /// output file path
+        /// Output file path
         output: String,
 
-        /// output format
+        /// Output format
         #[structopt(short, long, possible_values = &Format::variants(), case_insensitive = true, default_value = "Json")]
         format: Format,
     },
 
-    /// show bin log desc msg
+    /// Show bin log desc msg
     Desc {
-        /// binlog file path
+        /// Binlog file path
         input: String,
     },
 }
