@@ -1,5 +1,5 @@
 use crate::{
-    mysql::ColumnTypes,
+    mysql::ColTypes,
     utils::{extract_string, int_lenenc, pu64, string_fixed, string_nul, string_var},
 };
 use nom::{
@@ -260,9 +260,7 @@ pub enum Event {
         // [00] term sign in layout
         // len encoded integer
         column_count: u64,
-        columns_type: Vec<ColumnTypes>,
-        // len encoded string
-        column_meta_def: Vec<u8>,
+        columns_type: Vec<ColTypes>,
         null_bits: Vec<u8>,
         checksum: u32,
     },
@@ -895,11 +893,20 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     let (i, term) = le_u8(i)?;
     assert_eq!(term, 0);
     let (i, (_, column_count)) = int_lenenc(i)?;
-    let (i, columns_type) = map(take(column_count), |s: &[u8]| {
-        s.iter().map(|&t| ColumnTypes::from_u8(t)).collect()
+    let (i, cols_type): (&'a [u8], Vec<ColTypes>) = map(take(column_count), |s: &[u8]| {
+        s.iter().map(|&t| ColTypes::from_u8(t)).collect()
     })(i)?;
     let (i, (_, column_meta_count)) = int_lenenc(i)?;
-    let (i, column_meta_def) = map(take(column_meta_count), |s: &[u8]| s.to_vec())(i)?;
+    let (i, columns_type) = map(take(column_meta_count), |s: &[u8]| {
+        let mut used = 0;
+        let mut ret = vec![];
+        for col in cols_type.iter() {
+            let (_, (u, val)) = col.parse_def(&s[used..]).unwrap();
+            used = used + u;
+            ret.push(val);
+        }
+        ret
+    })(i)?;
     let mask_len = (column_count + 7) / 8;
     let (i, null_bits) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, checksum) = le_u32(i)?;
@@ -915,7 +922,6 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
             table_name,
             column_count,
             columns_type,
-            column_meta_def,
             null_bits,
             checksum,
         },
