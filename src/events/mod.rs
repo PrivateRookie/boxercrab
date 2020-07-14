@@ -1,6 +1,9 @@
 use crate::{
     mysql::ColTypes,
-    utils::{extract_string, int_lenenc, pu64, string_fixed, string_nul, string_var},
+    utils::{
+        extract_string, int_lenenc, pu64, serde_as_bits, serde_as_u8_list, string_fixed,
+        string_nul, string_var,
+    },
 };
 use nom::{
     bytes::complete::{tag, take},
@@ -323,6 +326,7 @@ pub enum Event {
         column_count: u64,
         inserted_image_bits: Vec<u8>,
         // FIXME unknown struct field
+        #[serde(serialize_with = "serde_as_u8_list")]
         rows: Vec<u8>,
         checksum: u32,
     },

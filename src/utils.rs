@@ -4,6 +4,7 @@ use nom::{
     number::complete::{le_u16, le_u32, le_u64, le_u8},
     IResult,
 };
+use serde::Serializer;
 
 /// parse fixed len int
 ///
@@ -112,4 +113,18 @@ pub fn pu32(input: &[u8]) -> IResult<&[u8], u32> {
 
 pub fn pu64(input: &[u8]) -> IResult<&[u8], u64> {
     le_u64(input)
+}
+
+pub fn serde_as_bits<S: Serializer>(val: u64, ser: S) -> Result<S::Ok, S::Error> {
+    ser.serialize_str(&format!("{:>b}", val))
+}
+
+pub fn serde_as_u8_list<S: Serializer>(val: &Vec<u8>, ser: S) -> Result<S::Ok, S::Error> {
+    ser.serialize_str(&format!(
+        "[{}]",
+        val.iter()
+            .map(|v| format!("{:0<2x}", v))
+            .collect::<Vec<String>>()
+            .join(", ")
+    ))
 }
