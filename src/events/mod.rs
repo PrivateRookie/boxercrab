@@ -1,10 +1,11 @@
 use crate::{
-    mysql::ColTypes,
+    mysql::{ColTypes, ColValues},
     utils::{
         extract_string, int_lenenc, pu64, serde_as_bits, serde_as_u8_list, string_fixed,
         string_nul, string_var,
     },
 };
+use lazy_static::lazy_static;
 use nom::{
     bytes::complete::{tag, take},
     combinator::map,
@@ -14,9 +15,18 @@ use nom::{
     IResult,
 };
 use serde::Serialize;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 mod query;
 mod rows;
+
+lazy_static! {
+    static ref TABLE_MAP: Arc<Mutex<HashMap<u64, Vec<ColTypes>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+}
 
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 pub struct EventFlag {
@@ -325,9 +335,7 @@ pub enum Event {
         extra_data: Vec<rows::ExtraData>,
         column_count: u64,
         inserted_image_bits: Vec<u8>,
-        // FIXME unknown struct field
-        #[serde(serialize_with = "serde_as_u8_list")]
-        rows: Vec<u8>,
+        rows: Vec<Vec<ColValues>>,
         checksum: u32,
     },
     UpdateRowsV2 {
@@ -914,6 +922,9 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     let mask_len = (column_count + 7) / 8;
     let (i, null_bits) = map(take(mask_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, checksum) = le_u32(i)?;
+    if let Ok(mut mapping) = TABLE_MAP.lock() {
+        mapping.insert(table_id, columns_type.clone());
+    }
     Ok((
         i,
         Event::TableMap {
@@ -1090,7 +1101,7 @@ fn parse_previous_gtids<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8]
     ))
 }
 
-fn parse_half_row<'a>(
+fn parse_part_row_event<'a>(
     input: &'a [u8],
 ) -> IResult<&'a [u8], (u64, rows::Flags, u16, Vec<rows::ExtraData>, (usize, u64))> {
     let (i, table_id): (&'a [u8], u64) = map(take(6usize), |id_raw: &[u8]| {
@@ -1125,25 +1136,35 @@ fn parse_half_row<'a>(
     ))
 }
 
+fn parse_row<'a>(input: &'a [u8], col_def: &Vec<ColTypes>) -> IResult<&'a [u8], Vec<ColValues>> {
+    // TODO take first from null bit map
+    let mut index = 1;
+    let mut ret = vec![];
+    for col in col_def {
+        let (_, (offset, col_val)) = col.parse(&input[index..])?;
+        ret.push(col_val);
+        index += offset;
+    }
+    Ok((&input[index..], ret))
+}
+
 fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
-        parse_half_row(input)?;
-
+        parse_part_row_event(input)?;
     let (i, inserted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
-    let (i, rows) = map(
-        take(
-            header.event_size
-                - 19
-                - 6
-                - 2
-                - 2
-                - (extra_data_len as u32 - 2)
-                - encode_len as u32
-                - ((column_count as u32 + 7) / 8)
-                - 4,
-        ),
-        |s: &[u8]| s.to_vec(),
+    let (i, col_data) = take(
+        header.event_size
+            - 19
+            - 6
+            - 2
+            - 2
+            - (extra_data_len as u32 - 2)
+            - encode_len as u32
+            - ((column_count as u32 + 7) / 8)
+            - 4,
     )(i)?;
+    let (_, rows) =
+        many1(|s| parse_row(s, TABLE_MAP.lock().unwrap().get(&table_id).unwrap()))(col_data)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -1163,7 +1184,7 @@ fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8],
 
 fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
-        parse_half_row(input)?;
+        parse_part_row_event(input)?;
 
     let (i, deleted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
     let (i, rows) = map(
@@ -1199,7 +1220,7 @@ fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8]
 
 fn parse_update_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
-        parse_half_row(input)?;
+        parse_part_row_event(input)?;
 
     let (i, before_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
     let (i, after_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;

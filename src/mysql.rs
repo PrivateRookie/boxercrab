@@ -6,6 +6,7 @@ use nom::{
     IResult,
 };
 use serde::Serialize;
+use std::{cell::RefCell, rc::Rc};
 
 /// type def ref: https://dev.mysql.com/doc/internals/en/table-map-event.html
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
@@ -132,46 +133,115 @@ impl ColTypes {
         }
     }
 
-    pub fn parse<'a>(&self, input: &'a [u8]) -> IResult<&'a [u8], Vec<u8>> {
-        let len: u16 = match *self {
-            ColTypes::Decimal => 4,
-            ColTypes::Tiny => 1,
-            ColTypes::Short => 2,
-            ColTypes::Long => 4,
-            ColTypes::Float(_) => 4,
-            ColTypes::Double(_) => 8,
-            ColTypes::Null => 0,
-            ColTypes::Timestamp => 1,
-            ColTypes::LongLong => 8,
-            ColTypes::Int24 => 4,
-            ColTypes::Date => 1,
-            ColTypes::Time => 1,
-            ColTypes::DateTime => 1,
-            ColTypes::Year => 2,
-            ColTypes::NewDate => 0,
-            ColTypes::VarChar(len) => len,
-            ColTypes::Bit(b1, b2) => ((b1 + 7) / 8 + (b2 + 7) / 8) as u16,
-            ColTypes::NewDecimal(_, _) => 8,
-            ColTypes::Enum => 0,
-            ColTypes::Set => 0,
-            ColTypes::TinyBlob => 0,
-            ColTypes::MediumBlob => 0,
-            ColTypes::LongBlob => 0,
-            ColTypes::Blob(len) => len as u16,
-            ColTypes::VarString(_, len) => len as u16,
-            ColTypes::String(_, len) => len as u16,
-            ColTypes::Geometry(len) => len as u16,
-        };
-        let (i, data) = take(len)(input)?;
+    pub fn parse<'a>(&self, input: &'a [u8]) -> IResult<&'a [u8], (usize, ColValues)> {
         match *self {
-            ColTypes::Time | ColTypes::Date | ColTypes::DateTime | ColTypes::Timestamp => {
-                let mut ret = data.to_vec();
-                let (_, len) = le_u8(data)?;
-                let (i, data) = take(len)(i)?;
-                ret.extend(data);
-                Ok((i, ret))
+            ColTypes::Decimal => {
+                map(take(4usize), |s: &[u8]| (4, ColValues::Decimal(s.to_vec())))(input)
             }
-            _ => Ok((i, data.to_vec())),
+            ColTypes::Tiny => map(take(1usize), |s: &[u8]| (1, ColValues::Tiny(s.to_vec())))(input),
+            ColTypes::Short => {
+                map(take(2usize), |s: &[u8]| (2, ColValues::Short(s.to_vec())))(input)
+            }
+            ColTypes::Long => map(take(4usize), |s: &[u8]| (4, ColValues::Long(s.to_vec())))(input),
+            ColTypes::Float(_) => {
+                map(take(4usize), |s: &[u8]| (4, ColValues::Float(s.to_vec())))(input)
+            }
+            ColTypes::Double(_) => {
+                map(take(8usize), |s: &[u8]| (8, ColValues::Double(s.to_vec())))(input)
+            }
+            ColTypes::Null => map(take(0usize), |_| (0, ColValues::Null))(input),
+            ColTypes::LongLong => map(take(8usize), |s: &[u8]| {
+                (8, ColValues::LongLong(s.to_vec()))
+            })(input),
+            ColTypes::Int24 => {
+                map(take(4usize), |s: &[u8]| (4, ColValues::Int24(s.to_vec())))(input)
+            }
+            ColTypes::Timestamp => map(parse_packed, |(len, v): (usize, Vec<u8>)| {
+                (len, ColValues::Timestamp(v))
+            })(input),
+            ColTypes::Date => map(parse_packed, |(len, v): (usize, Vec<u8>)| {
+                (len, ColValues::Date(v))
+            })(input),
+            ColTypes::Time => map(parse_packed, |(len, v): (usize, Vec<u8>)| {
+                (len, ColValues::Time(v))
+            })(input),
+            ColTypes::DateTime => map(parse_packed, |(len, v): (usize, Vec<u8>)| {
+                (len, ColValues::DateTime(v))
+            })(input),
+            ColTypes::Year => map(take(2usize), |s: &[u8]| (2, ColValues::Year(s.to_vec())))(input),
+            ColTypes::NewDate => map(take(0usize), |_| (0, ColValues::NewDate))(input),
+            ColTypes::VarChar(_) => {
+                let (i, len) = le_u8(input)?;
+                map(take(len), move |s: &[u8]| {
+                    (len as usize, ColValues::VarChar(s.to_vec()))
+                })(i)
+            },
+            ColTypes::Bit(b1, b2) => {
+                let len = ((b1 + 7) / 8 + (b2 + 7) / 8) as usize;
+                map(take(len), move |s: &[u8]| (len, ColValues::Bit(s.to_vec())))(input)
+            }
+            ColTypes::NewDecimal(_, _) => map(take(8usize), |s: &[u8]| {
+                (8, ColValues::NewDecimal(s.to_vec()))
+            })(input),
+            ColTypes::Enum => map(take(0usize), |_| (0, ColValues::Enum))(input),
+            ColTypes::Set => map(take(0usize), |_| (0, ColValues::Set))(input),
+            ColTypes::TinyBlob => map(take(0usize), |_| (0, ColValues::TinyBlob))(input),
+            ColTypes::MediumBlob => map(take(0usize), |_| (0, ColValues::MediumBlob))(input),
+            ColTypes::LongBlob => map(take(0usize), |_| (0, ColValues::LongBlob))(input),
+            ColTypes::Blob(len) => map(take(len), |s: &[u8]| {
+                (len as usize, ColValues::Blob(s.to_vec()))
+            })(input),
+            // TODO fix do not use len in def
+            ColTypes::VarString(_, len) => map(take(len), |s: &[u8]| {
+                (len as usize, ColValues::VarString(s.to_vec()))
+            })(input),
+            // TODO fix do not use len in def
+            ColTypes::String(_, len) => map(take(len), |s: &[u8]| {
+                (len as usize, ColValues::String(s.to_vec()))
+            })(input),
+            // TODO fix do not use len in def ?
+            ColTypes::Geometry(len) => map(take(len), |s: &[u8]| {
+                (len as usize, ColValues::Geometry(s.to_vec()))
+            })(input),
         }
     }
+}
+
+fn parse_packed(input: &[u8]) -> IResult<&[u8], (usize, Vec<u8>)> {
+    let mut data = vec![input[0]];
+    let (i, len) = le_u8(input)?;
+    let (i, raw) = take(len)(i)?;
+    data.extend(raw);
+    Ok((i, (len as usize + 1, data)))
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+pub enum ColValues {
+    Decimal(Vec<u8>),
+    Tiny(Vec<u8>),
+    Short(Vec<u8>),
+    Long(Vec<u8>),
+    Float(Vec<u8>),
+    Double(Vec<u8>),
+    Null,
+    Timestamp(Vec<u8>),
+    LongLong(Vec<u8>),
+    Int24(Vec<u8>),
+    Date(Vec<u8>),
+    Time(Vec<u8>),
+    DateTime(Vec<u8>),
+    Year(Vec<u8>),
+    NewDate, // internal used
+    VarChar(Vec<u8>),
+    Bit(Vec<u8>),
+    NewDecimal(Vec<u8>),
+    Enum,       // internal used
+    Set,        // internal used
+    TinyBlob,   // internal used
+    MediumBlob, // internal used
+    LongBlob,   // internal used
+    Blob(Vec<u8>),
+    VarString(Vec<u8>),
+    String(Vec<u8>),
+    Geometry(Vec<u8>),
 }
