@@ -6,7 +6,6 @@ use nom::{
     IResult,
 };
 use serde::Serialize;
-use std::{cell::RefCell, rc::Rc};
 
 /// type def ref: https://dev.mysql.com/doc/internals/en/table-map-event.html
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
@@ -114,7 +113,7 @@ impl ColTypes {
         match *self {
             ColTypes::Float(_) => map(le_u8, |v| (1, ColTypes::Float(v)))(input),
             ColTypes::Double(_) => map(le_u8, |v| (1, ColTypes::Double(v)))(input),
-            ColTypes::VarChar(_) => map(le_u16, |v| (1, ColTypes::VarChar(v)))(input),
+            ColTypes::VarChar(_) => map(le_u16, |v| (2, ColTypes::VarChar(v)))(input),
             ColTypes::NewDecimal(_, _) => map(tuple((le_u8, le_u8)), |(m, d)| {
                 (2, ColTypes::NewDecimal(m, d))
             })(input),
@@ -170,12 +169,19 @@ impl ColTypes {
             })(input),
             ColTypes::Year => map(take(2usize), |s: &[u8]| (2, ColValues::Year(s.to_vec())))(input),
             ColTypes::NewDate => map(take(0usize), |_| (0, ColValues::NewDate))(input),
-            ColTypes::VarChar(_) => {
-                let (i, len) = le_u8(input)?;
-                map(take(len), move |s: &[u8]| {
-                    (len as usize, ColValues::VarChar(s.to_vec()))
-                })(i)
-            },
+            ColTypes::VarChar(max_len) => {
+                if max_len > 255 {
+                    let (i, len) = le_u16(input)?;
+                    map(take(len), move |s: &[u8]| {
+                        (len as usize + 2, ColValues::VarChar(s.to_vec()))
+                    })(i)
+                } else {
+                    let (i, len) = le_u8(input)?;
+                    map(take(len), move |s: &[u8]| {
+                        (len as usize + 1, ColValues::VarChar(s.to_vec()))
+                    })(i)
+                }
+            }
             ColTypes::Bit(b1, b2) => {
                 let len = ((b1 + 7) / 8 + (b2 + 7) / 8) as usize;
                 map(take(len), move |s: &[u8]| (len, ColValues::Bit(s.to_vec())))(input)
@@ -191,14 +197,20 @@ impl ColTypes {
             ColTypes::Blob(len) => map(take(len), |s: &[u8]| {
                 (len as usize, ColValues::Blob(s.to_vec()))
             })(input),
-            // TODO fix do not use len in def
-            ColTypes::VarString(_, len) => map(take(len), |s: &[u8]| {
-                (len as usize, ColValues::VarString(s.to_vec()))
-            })(input),
-            // TODO fix do not use len in def
-            ColTypes::String(_, len) => map(take(len), |s: &[u8]| {
-                (len as usize, ColValues::String(s.to_vec()))
-            })(input),
+            ColTypes::VarString(_, _) => {
+                // TODO should check string max_len ?
+                let (i, len) = le_u8(input)?;
+                map(take(len), move |s: &[u8]| {
+                    (len as usize, ColValues::VarString(s.to_vec()))
+                })(i)
+            }
+            ColTypes::String(_, _) => {
+                // TODO should check string max_len ?
+                let (i, len) = le_u8(input)?;
+                map(take(len), move |s: &[u8]| {
+                    (len as usize, ColValues::VarChar(s.to_vec()))
+                })(i)
+            }
             // TODO fix do not use len in def ?
             ColTypes::Geometry(len) => map(take(len), |s: &[u8]| {
                 (len as usize, ColValues::Geometry(s.to_vec()))

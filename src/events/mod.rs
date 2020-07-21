@@ -1,9 +1,6 @@
 use crate::{
     mysql::{ColTypes, ColValues},
-    utils::{
-        extract_string, int_lenenc, pu64, serde_as_bits, serde_as_u8_list, string_fixed,
-        string_nul, string_var,
-    },
+    utils::{extract_string, int_lenenc, pu64, string_fixed, string_nul, string_var},
 };
 use lazy_static::lazy_static;
 use nom::{
@@ -348,8 +345,7 @@ pub enum Event {
         column_count: u64,
         before_image_bits: Vec<u8>,
         after_image_bits: Vec<u8>,
-        // FIXME unknown struct field
-        rows: Vec<u8>,
+        rows: Vec<Vec<ColValues>>,
         checksum: u32,
     },
     DeleteRowsV2 {
@@ -361,8 +357,7 @@ pub enum Event {
         extra_data: Vec<rows::ExtraData>,
         column_count: u64,
         deleted_image_bits: Vec<u8>,
-        // FIXME unknown struct field
-        rows: Vec<u8>,
+        rows: Vec<Vec<ColValues>>,
         checksum: u32,
     },
 }
@@ -1136,9 +1131,12 @@ fn parse_part_row_event<'a>(
     ))
 }
 
-fn parse_row<'a>(input: &'a [u8], col_def: &Vec<ColTypes>) -> IResult<&'a [u8], Vec<ColValues>> {
-    // TODO take first from null bit map
-    let mut index = 1;
+fn parse_row<'a>(
+    input: &'a [u8],
+    init_idx: usize,
+    col_def: &Vec<ColTypes>,
+) -> IResult<&'a [u8], Vec<ColValues>> {
+    let mut index = if input.len() != 0 { init_idx } else { 0 };
     let mut ret = vec![];
     for col in col_def {
         let (_, (offset, col_val)) = col.parse(&input[index..])?;
@@ -1151,20 +1149,25 @@ fn parse_row<'a>(input: &'a [u8], col_def: &Vec<ColTypes>) -> IResult<&'a [u8], 
 fn parse_write_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_part_row_event(input)?;
-    let (i, inserted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
+    let bit_len = (column_count + 7) / 8;
+    let (i, inserted_image_bits) = map(take(bit_len), |s: &[u8]| s.to_vec())(i)?;
     let (i, col_data) = take(
         header.event_size
             - 19
             - 6
             - 2
-            - 2
-            - (extra_data_len as u32 - 2)
+            - extra_data_len as u32
             - encode_len as u32
             - ((column_count as u32 + 7) / 8)
             - 4,
     )(i)?;
-    let (_, rows) =
-        many1(|s| parse_row(s, TABLE_MAP.lock().unwrap().get(&table_id).unwrap()))(col_data)?;
+    let (_, rows) = many1(|s| {
+        parse_row(
+            s,
+            bit_len as usize,
+            TABLE_MAP.lock().unwrap().get(&table_id).unwrap(),
+        )
+    })(col_data)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -1186,21 +1189,25 @@ fn parse_delete_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8]
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_part_row_event(input)?;
 
-    let (i, deleted_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
-    let (i, rows) = map(
-        take(
-            header.event_size
-                - 19
-                - 6
-                - 2
-                - 2
-                - (extra_data_len as u32 - 2)
-                - encode_len as u32
-                - ((column_count as u32 + 7) / 8)
-                - 4,
-        ),
-        |s: &[u8]| s.to_vec(),
+    let bit_len = (column_count + 7) / 8;
+    let (i, deleted_image_bits) = map(take(bit_len), |s: &[u8]| s.to_vec())(i)?;
+    let (i, col_data) = take(
+        header.event_size
+            - 19
+            - 6
+            - 2
+            - extra_data_len as u32
+            - encode_len as u32
+            - ((column_count as u32 + 7) / 8)
+            - 4,
     )(i)?;
+    let (_, rows) = many1(|s| {
+        parse_row(
+            s,
+            bit_len as usize,
+            TABLE_MAP.lock().unwrap().get(&table_id).unwrap(),
+        )
+    })(col_data)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -1222,22 +1229,27 @@ fn parse_update_rows_v2<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8]
     let (i, (table_id, flags, extra_data_len, extra_data, (encode_len, column_count))) =
         parse_part_row_event(input)?;
 
-    let (i, before_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
-    let (i, after_image_bits) = map(take((column_count + 7) / 8), |s: &[u8]| s.to_vec())(i)?;
-    let (i, rows) = map(
-        take(
-            header.event_size
-                - 19
-                - 6
-                - 2
-                - 2
-                - (extra_data_len as u32 - 2)
-                - encode_len as u32
-                - ((column_count as u32 + 7) / 8) * 2
-                - 4,
-        ),
-        |s: &[u8]| s.to_vec(),
+    let bit_len = (column_count + 7) / 8;
+    let (i, before_image_bits) = map(take(bit_len), |s: &[u8]| s.to_vec())(i)?;
+    let (i, after_image_bits) = map(take(bit_len), |s: &[u8]| s.to_vec())(i)?;
+    // TODO I still don't know is it right or not :(
+    let (i, col_data) = take(
+        header.event_size as u64
+            - 19
+            - 6
+            - 2
+            - extra_data_len as u64
+            - encode_len as u64
+            - bit_len * 2
+            - 4,
     )(i)?;
+    let (_, rows) = many1(|s| {
+        parse_row(
+            s,
+            bit_len as usize,
+            TABLE_MAP.lock().unwrap().get(&table_id).unwrap(),
+        )
+    })(col_data)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -1426,6 +1438,8 @@ mod test {
     fn test_write_row_v2() {
         let input = include_bytes!("../../tests/bin_files/write_rows_v21.bin");
         let (i, header) = parse_header(input).unwrap();
+        let (i, _) = parse_table_map(i, header).unwrap();
+        let (i, header) = parse_header(i).unwrap();
         let (i, e) = parse_write_rows_v2(&i, header).unwrap();
         match e {
             Event::WriteRowsV2 {
@@ -1435,8 +1449,8 @@ mod test {
                 ..
             } => {
                 assert_eq!(i.len(), 0);
-                assert_eq!(table_id, 109);
-                assert_eq!(checksum, 0x22e3fec9);
+                assert_eq!(table_id, 115);
+                assert_eq!(checksum, 0x73cbfb1e);
                 assert_eq!(
                     flags,
                     rows::Flags {
