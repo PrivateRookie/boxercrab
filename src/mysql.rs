@@ -1,3 +1,4 @@
+use crate::utils::pu32;
 use nom::{
     bytes::complete::take,
     combinator::map,
@@ -169,6 +170,7 @@ impl ColTypes {
             })(input),
             ColTypes::Year => map(take(2usize), |s: &[u8]| (2, ColValues::Year(s.to_vec())))(input),
             ColTypes::NewDate => map(take(0usize), |_| (0, ColValues::NewDate))(input),
+            // ref: https://dev.mysql.com/doc/refman/5.7/en/char.html
             ColTypes::VarChar(max_len) => {
                 if max_len > 255 {
                     let (i, len) = le_u16(input)?;
@@ -194,9 +196,19 @@ impl ColTypes {
             ColTypes::TinyBlob => map(take(0usize), |_| (0, ColValues::TinyBlob))(input),
             ColTypes::MediumBlob => map(take(0usize), |_| (0, ColValues::MediumBlob))(input),
             ColTypes::LongBlob => map(take(0usize), |_| (0, ColValues::LongBlob))(input),
-            ColTypes::Blob(len) => map(take(len), |s: &[u8]| {
-                (len as usize, ColValues::Blob(s.to_vec()))
-            })(input),
+            ColTypes::Blob(len_bytes) => {
+                let mut raw_len = input[..len_bytes as usize].to_vec();
+                for _ in 0..(4 - len_bytes) {
+                    raw_len.push(0);
+                }
+                let (_, len) = pu32(&raw_len).unwrap();
+                map(take(len), move |s: &[u8]| {
+                    (
+                        len_bytes as usize + len as usize,
+                        ColValues::Blob(s.to_vec()),
+                    )
+                })(&input[len_bytes as usize..])
+            }
             ColTypes::VarString(_, _) => {
                 // TODO should check string max_len ?
                 let (i, len) = le_u8(input)?;
