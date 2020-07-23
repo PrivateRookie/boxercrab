@@ -905,7 +905,6 @@ fn parse_table_map<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Eve
     })(i)?;
     let (i, (_, column_meta_count)) = int_lenenc(i)?;
     let (i, columns_type) = map(take(column_meta_count), |s: &[u8]| {
-        dbg!(s);
         let mut used = 0;
         let mut ret = vec![];
         for col in cols_type.iter() {
