@@ -20,7 +20,7 @@ else
     else
         echo ==========================================
         echo
-        echo "running ${target_dir}/sql.sh"
+        echo "running ${target_dir}/sql.sql"
         echo
         echo ==========================================
         mysql_exec "echo reset master" 2> /dev/null
