@@ -9,5 +9,7 @@ CREATE TABLE `boxercrab` (
     PRIMARY KEY (`id`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+reset master;
+
 INSERT INTO `boxercrab` (`title`, `author`, `time`, `score`) VALUES ('test blog', 'xd', '2020-07-11', 12);
 INSERT INTO `boxercrab` (`title`, `author`, `time`, `score`) VALUES ('test blog', 'xd', '2020-07-11', LAST_INSERT_ID());

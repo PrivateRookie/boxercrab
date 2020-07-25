@@ -109,12 +109,14 @@ pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/stop-event.html
     Stop {
         header: Header,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/rotate-event.html
     Rotate {
         header: Header,
         position: u64,
         next_binlog: String,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/intvar-event.html
     IntVar {
@@ -497,19 +499,22 @@ fn parse_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> 
 }
 
 fn parse_stop<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    Ok((input, Event::Stop { header }))
+    let (i, checksum) = le_u32(input)?;
+    Ok((i, Event::Stop { header, checksum }))
 }
 
 fn parse_rotate<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, position) = le_u64(input)?;
-    let str_len = header.event_size - 19 - 8;
+    let str_len = header.event_size - 19 - 8 - 4;
     let (i, next_binlog) = map(take(str_len), |s: &[u8]| string_var(s, str_len as usize))(i)?;
+    let (i, checksum) = le_u32(i)?;
     Ok((
         i,
         Event::Rotate {
             header,
             position,
             next_binlog,
+            checksum,
         },
     ))
 }
