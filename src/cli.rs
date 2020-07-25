@@ -1,11 +1,27 @@
 use boxercrab::events::Event;
+use log::LevelFilter;
+use log4rs::{
+    append::console::{ConsoleAppender, Target},
+    config::{Appender, Config, Root},
+    Handle,
+};
 use std::fs::File;
 use std::io::prelude::*;
 use structopt::{clap::arg_enum, StructOpt};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "boxercrab-cli", about = "MySQL binlog tool impl with Rust")]
-enum Args {
+pub struct Args {
+    /// enable debug info
+    #[structopt(short, long)]
+    debug: bool,
+
+    #[structopt(subcommand)]
+    sub: Cmd,
+}
+
+#[derive(Debug, StructOpt)]
+enum Cmd {
     /// Transform a binlog file to specified format
     Serde {
         /// Binlog file path
@@ -34,10 +50,25 @@ arg_enum! {
     }
 }
 
+fn init_log(debug: bool) -> Handle {
+    let level = if debug {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
+    let stdout = ConsoleAppender::builder().target(Target::Stdout).build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(level))
+        .unwrap();
+    log4rs::init_config(config).unwrap()
+}
+
 fn main() {
-    log4rs::init_file("config/log.yaml", Default::default()).unwrap();
-    match Args::from_args() {
-        Args::Serde {
+    let args = Args::from_args();
+    let _handle = init_log(args.debug);
+    match args.sub {
+        Cmd::Serde {
             input,
             output,
             format,
@@ -76,7 +107,7 @@ fn main() {
                 }
             }
         },
-        Args::Desc { input } => match File::open(&input) {
+        Cmd::Desc { input } => match File::open(&input) {
             Err(e) => println!("read {} error: {}", &input, e),
             Ok(mut file) => {
                 let mut buf = vec![];
