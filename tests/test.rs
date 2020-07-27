@@ -27,7 +27,7 @@ fn test_rotate() {
             assert_eq!(next_binlog, "mysql_bin.000002");
             assert_eq!(*position, 4);
         }
-        _ => panic!("should be rotate event"),
+        _ => panic!("should be rotate"),
     }
 }
 
@@ -65,6 +65,6 @@ fn test_update_row_v2() {
     ];
     match update_row {
         UpdateRowsV2 { rows, .. } => assert_eq!(rows, &values),
-        _ => panic!("should not reach"),
+        _ => panic!("should be update_row_v2"),
     }
 }
