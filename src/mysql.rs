@@ -28,6 +28,9 @@ pub enum ColTypes {
     NewDate, // internal used
     VarChar(u16),
     Bit(u8, u8),
+    Timestamp2(u8), // this field is suck!!! don't know how to parse
+    DateTime2(u8),  // this field is suck!!! don't know how to parse
+    Time2(u8),      // this field is suck!!! don't know how to parse
     NewDecimal(u8, u8),
     Enum,       // internal used
     Set,        // internal used
@@ -61,6 +64,9 @@ impl ColTypes {
             ColTypes::NewDate => (14, 0),
             ColTypes::VarChar(_) => (15, 2),
             ColTypes::Bit(_, _) => (16, 2),
+            ColTypes::Timestamp2(_) => (17, 1),
+            ColTypes::DateTime2(_) => (18, 1),
+            ColTypes::Time2(_) => (19, 1),
             ColTypes::NewDecimal(_, _) => (246, 2),
             ColTypes::Enum => (247, 0),
             ColTypes::Set => (248, 0),
@@ -83,16 +89,19 @@ impl ColTypes {
             4 => ColTypes::Float(4),
             5 => ColTypes::Double(8),
             6 => ColTypes::Null,
-            7 | 17 => ColTypes::Timestamp,
+            7 => ColTypes::Timestamp,
             8 => ColTypes::LongLong,
             9 => ColTypes::Int24,
             10 => ColTypes::Date,
-            11 | 19 => ColTypes::Time,
-            12 | 18 => ColTypes::DateTime,
+            11 => ColTypes::Time,
+            12 => ColTypes::DateTime,
             13 => ColTypes::Year,
             14 => ColTypes::NewDate,
             15 => ColTypes::VarChar(0),
             16 => ColTypes::Bit(0, 0),
+            17 => ColTypes::Timestamp2(0),
+            18 => ColTypes::DateTime2(0),
+            19 => ColTypes::Time2(0),
             246 => ColTypes::NewDecimal(10, 0),
             247 => ColTypes::Enum,
             248 => ColTypes::Set,
@@ -129,6 +138,9 @@ impl ColTypes {
                 map(tuple((le_u8, le_u8)), |(b1, b2)| (2, ColTypes::Bit(b1, b2)))(input)
             }
             ColTypes::Geometry(_) => map(le_u8, |v| (1, ColTypes::Geometry(v)))(input),
+            ColTypes::Timestamp2(_) => map(le_u8, |v| (1, ColTypes::Timestamp2(v)))(input),
+            ColTypes::DateTime2(_) => map(le_u8, |v| (1, ColTypes::DateTime2(v)))(input),
+            ColTypes::Time2(_) => map(le_u8, |v| (1, ColTypes::Timestamp2(v)))(input),
             _ => Ok((input, (0, self.clone()))),
         }
     }
@@ -187,6 +199,15 @@ impl ColTypes {
             ColTypes::Bit(b1, b2) => {
                 let len = ((b1 + 7) / 8 + (b2 + 7) / 8) as usize;
                 map(take(len), move |s: &[u8]| (len, ColValues::Bit(s.to_vec())))(input)
+            }
+            ColTypes::Timestamp2(_) => map(take(4usize), |v: &[u8]| {
+                (4, ColValues::Timestamp2(v.to_vec()))
+            })(input),
+            ColTypes::DateTime2(_) => map(take(4usize), |v: &[u8]| {
+                (4, ColValues::DateTime2(v.to_vec()))
+            })(input),
+            ColTypes::Time2(_) => {
+                map(take(4usize), |v: &[u8]| (4, ColValues::Time2(v.to_vec())))(input)
             }
             ColTypes::NewDecimal(_, _) => map(take(8usize), |s: &[u8]| {
                 (8, ColValues::NewDecimal(s.to_vec()))
@@ -258,6 +279,9 @@ pub enum ColValues {
     NewDate, // internal used
     VarChar(Vec<u8>),
     Bit(Vec<u8>),
+    Timestamp2(Vec<u8>),
+    DateTime2(Vec<u8>),
+    Time2(Vec<u8>),
     NewDecimal(Vec<u8>),
     Enum,       // internal used
     Set,        // internal used
