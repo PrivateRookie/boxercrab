@@ -155,12 +155,16 @@ impl ColTypes {
                 map(take(2usize), |s: &[u8]| (2, ColValues::Short(s.to_vec())))(input)
             }
             ColTypes::Long => map(take(4usize), |s: &[u8]| (4, ColValues::Long(s.to_vec())))(input),
-            ColTypes::Float(_) => {
-                map(take(4usize), |s: &[u8]| (4, ColValues::Float(s.to_vec())))(input)
-            }
-            ColTypes::Double(_) => {
-                map(take(8usize), |s: &[u8]| (8, ColValues::Double(s.to_vec())))(input)
-            }
+            ColTypes::Float(_) => map(take(4usize), |s: &[u8]| {
+                let mut f: [u8; 4] = Default::default();
+                f.copy_from_slice(s);
+                (4, ColValues::Float(f32::from_le_bytes(f)))
+            })(input),
+            ColTypes::Double(_) => map(take(8usize), |s: &[u8]| {
+                let mut d: [u8; 8] = Default::default();
+                d.copy_from_slice(s);
+                (8, ColValues::Double(f64::from_le_bytes(d)))
+            })(input),
             ColTypes::Null => map(take(0usize), |_| (0, ColValues::Null))(input),
             ColTypes::LongLong => map(take(8usize), |s: &[u8]| {
                 (8, ColValues::LongLong(s.to_vec()))
@@ -209,9 +213,20 @@ impl ColTypes {
             ColTypes::Time2(_) => {
                 map(take(4usize), |v: &[u8]| (4, ColValues::Time2(v.to_vec())))(input)
             }
-            ColTypes::NewDecimal(_, _) => map(take(8usize), |s: &[u8]| {
-                (8, ColValues::NewDecimal(s.to_vec()))
-            })(input),
+            ColTypes::NewDecimal(precision, scale) => {
+                // copy from https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/src/binary_log_funcs.cpp#L204-L214
+                let dig2bytes: [u8; 10] = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4];
+                let intg = precision - scale;
+                let intg0 = intg / 9;
+                let frac0 = scale / 9;
+                let intg0x = intg - intg0 * 9;
+                let frac0x = scale - frac0 * 9;
+                let len =
+                    intg0 * 4 + dig2bytes[intg0x as usize] + frac0 * 4 + dig2bytes[frac0x as usize];
+                map(take(len), move |s: &[u8]| {
+                    (len as usize, ColValues::NewDecimal(s.to_vec()))
+                })(input)
+            }
             ColTypes::Enum => map(take(0usize), |_| (0, ColValues::Enum))(input),
             ColTypes::Set => map(take(0usize), |_| (0, ColValues::Set))(input),
             ColTypes::TinyBlob => map(take(0usize), |_| (0, ColValues::TinyBlob))(input),
@@ -260,14 +275,14 @@ fn parse_packed(input: &[u8]) -> IResult<&[u8], (usize, Vec<u8>)> {
     Ok((i, (len as usize + 1, data)))
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub enum ColValues {
     Decimal(Vec<u8>),
     Tiny(Vec<u8>),
     Short(Vec<u8>),
     Long(Vec<u8>),
-    Float(Vec<u8>),
-    Double(Vec<u8>),
+    Float(f32),
+    Double(f64),
     Null,
     Timestamp(Vec<u8>),
     LongLong(Vec<u8>),

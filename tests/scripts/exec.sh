@@ -24,7 +24,7 @@ else
         echo
         echo ==========================================
         mysql_exec "echo reset master" 2> /dev/null
-        mysql_exec "cat ${target_dir}/sql.sql" 2> /dev/null
+        mysql_exec "cat ${target_dir}/sql.sql"
         mysql_exec "echo flush logs" 2> /dev/null
         dump_binlog ${target_dir}/dump.txt
         cp_binlog ${target_dir}/log.bin

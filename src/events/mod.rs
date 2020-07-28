@@ -84,7 +84,7 @@ pub fn check_start(i: &[u8]) -> IResult<&[u8], &[u8]> {
     tag([254, 98, 105, 110])(i)
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/ignored-events.html#unknown-event
     Unknown {

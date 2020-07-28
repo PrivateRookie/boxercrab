@@ -53,6 +53,9 @@ fn test_update_row_v2() {
             Blob(abc.clone()),
             Blob(abc.clone()),
             Blob(abc.clone()),
+            Float(1.0),
+            Double(2.0),
+            NewDecimal(vec![128, 0, 3, 0, 0]),
         ],
         vec![
             Long(vec![1, 0, 0, 0]),
@@ -61,6 +64,9 @@ fn test_update_row_v2() {
             Blob(xd.clone()),
             Blob(xd.clone()),
             Blob(xd.clone()),
+            Float(4.0),
+            Double(4.0),
+            NewDecimal(vec![128, 0, 4, 0, 0]),
         ],
     ];
     match update_row {
