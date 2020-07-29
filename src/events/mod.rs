@@ -123,6 +123,7 @@ pub enum Event {
         header: Header,
         e_type: IntVarEventType,
         value: u64,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/load-event.html
     Load {
@@ -150,28 +151,33 @@ pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/ignored-events.html#slave-event
     Slave {
         header: Header,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/create-file-event.html
     CreateFile {
         header: Header,
         file_id: u32,
         block_data: String,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/append-block-event.html
     AppendFile {
         header: Header,
         file_id: u32,
         block_data: String,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/exec-load-event.html
     ExecLoad {
         header: Header,
         file_id: u16,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/delete-file-event.html
     DeleteFile {
         header: Header,
         file_id: u16,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/new-load-event.html
     NewLoad {
@@ -207,6 +213,7 @@ pub enum Event {
         header: Header,
         seed1: u64,
         seed2: u64,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/user-var-event.html
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/statement_events.h#L712-L779
@@ -221,6 +228,7 @@ pub enum Event {
         value_length: Option<u32>,
         value: Option<Vec<u8>>,
         flags: Option<u8>,
+        checksum: u32,
     },
     // source: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L295-L344
     // event_data layout: https://github.com/mysql/mysql-server/blob/a394a7e17744a70509be5d3f1fd73f8779a31424/libbinlogevents/include/control_events.h#L387-L416
@@ -287,6 +295,7 @@ pub enum Event {
     // ref: https://dev.mysql.com/doc/internals/en/heartbeat-event.html
     Heartbeat {
         header: Header,
+        checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/rows-query-event.html
     RowQuery {
@@ -526,13 +535,14 @@ fn parse_intvar<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event>
         0x02 => IntVarEventType::InsertIdEvent,
         _ => unreachable!(),
     })(input)?;
-    let (i, value) = le_u64(i)?;
+    let (i, (value, checksum)) = tuple((le_u64, le_u32))(i)?;
     Ok((
         i,
         Event::IntVar {
             header,
             e_type,
             value,
+            checksum,
         },
     ))
 }
@@ -640,53 +650,65 @@ fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
 }
 
 fn parse_slave<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    Ok((input, Event::Slave { header }))
+    let (i, checksum) = le_u32(input)?;
+    Ok((i, Event::Slave { header, checksum }))
 }
 
-fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u32, String)> {
+fn parse_file_data<'a>(input: &'a [u8], header: &Header) -> IResult<&'a [u8], (u32, String, u32)> {
     let (i, file_id) = le_u32(input)?;
-    let (i, block_data) = map(take(header.event_size - 19 - 4), |s: &[u8]| {
+    let (i, block_data) = map(take(header.event_size - 19 - 4 - 4), |s: &[u8]| {
         extract_string(s)
     })(i)?;
-    Ok((i, (file_id, block_data)))
+    let (i, checksum) = le_u32(i)?;
+    Ok((i, (file_id, block_data, checksum)))
 }
 
 fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
+    let (i, (file_id, block_data, checksum)) = parse_file_data(input, &header)?;
     Ok((
         i,
         Event::CreateFile {
             header,
             file_id,
             block_data,
+            checksum,
         },
     ))
 }
 
 fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
+    let (i, (file_id, block_data, checksum)) = parse_file_data(input, &header)?;
     Ok((
         i,
         Event::AppendFile {
             header,
             file_id,
             block_data,
+            checksum,
         },
     ))
 }
 
 fn parse_exec_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    map(le_u16, |file_id: u16| Event::ExecLoad {
-        header: header.clone(),
-        file_id,
-    })(input)
+    map(
+        tuple((le_u16, le_u32)),
+        |(file_id, checksum): (u16, u32)| Event::ExecLoad {
+            header: header.clone(),
+            file_id,
+            checksum,
+        },
+    )(input)
 }
 
 fn parse_delete_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    map(le_u16, |file_id: u16| Event::DeleteFile {
-        header: header.clone(),
-        file_id,
-    })(input)
+    map(
+        tuple((le_u16, le_u32)),
+        |(file_id, checksum): (u16, u32)| Event::DeleteFile {
+            header: header.clone(),
+            file_id,
+            checksum,
+        },
+    )(input)
 }
 
 fn extract_from_prev<'a>(input: &'a [u8]) -> IResult<&'a [u8], (u8, String)> {
@@ -743,13 +765,14 @@ fn parse_new_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
 }
 
 fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, (seed1, seed2)) = tuple((le_u64, le_u64))(input)?;
+    let (i, (seed1, seed2, checksum)) = tuple((le_u64, le_u64, le_u32))(input)?;
     Ok((
         i,
         Event::Rand {
             header,
             seed1,
             seed2,
+            checksum,
         },
     ))
 }
@@ -760,6 +783,7 @@ fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
         string_var(s, name_length as usize)
     })(i)?;
     let (i, is_null) = map(le_u8, |v| v == 1)(i)?;
+    let (i, checksum) = le_u32(i)?;
     if is_null {
         Ok((
             i,
@@ -773,6 +797,7 @@ fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
                 value_length: None,
                 value: None,
                 flags: None,
+                checksum,
             },
         ))
     } else {
@@ -781,6 +806,7 @@ fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
         let (i, value_length) = le_u32(i)?;
         let (i, value) = map(take(value_length), |s: &[u8]| Some(s.to_vec()))(i)?;
         let (i, flags) = map(le_u8, |v| Some(v))(i)?;
+        let (i, checksum) = le_u32(i)?;
         Ok((
             i,
             Event::UserVar {
@@ -793,6 +819,7 @@ fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
                 value_length: Some(value_length),
                 value,
                 flags,
+                checksum,
             },
         ))
     }
@@ -835,8 +862,7 @@ fn parse_xid<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
 }
 
 fn parse_begin_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    let (i, (file_id, block_data)) = parse_file_data(input, &header)?;
-    let (i, checksum) = le_u32(i)?;
+    let (i, (file_id, block_data, checksum)) = parse_file_data(input, &header)?;
     Ok((
         i,
         Event::BeginLoadQuery {
@@ -967,7 +993,8 @@ fn parse_incident<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
 }
 
 fn parse_heartbeat<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
-    Ok((input, Event::Heartbeat { header }))
+    let (i, checksum) = le_u32(input)?;
+    Ok((i, Event::Heartbeat { header, checksum }))
 }
 
 fn parse_row_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
