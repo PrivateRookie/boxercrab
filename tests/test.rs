@@ -31,12 +31,57 @@ fn test_rotate() {
     }
 }
 
-// #[test]
-// fn test_intvar() {
-//     let input = include_bytes!("events/05_intvar/log.bin");
-//     let (remain, output) = Event::from_bytes(input).unwrap();
-//     assert_eq!(remain.len(), 0);
-// }
+#[test]
+fn test_intvar() {
+    use boxercrab::events::IntVarEventType;
+    let input = include_bytes!("events/05_intvar/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(8).unwrap() {
+        IntVar { e_type, value, .. } => {
+            assert_eq!(e_type, &IntVarEventType::LastInsertIdEvent);
+            assert_eq!(*value, 0);
+        }
+        _ => panic!("should be intvar"),
+    }
+}
+
+#[test]
+fn test_begin_load_query_and_exec_load_query() {
+    let input = include_bytes!("events/17_18_load/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(4).unwrap() {
+        BeginLoadQuery {
+            file_id,
+            block_data,
+            ..
+        } => {
+            assert_eq!(*file_id, 1);
+            assert_eq!(block_data, "1,\"abc\"\n");
+        }
+        _ => panic!("should be begin load query"),
+    };
+    match output.get(5).unwrap() {
+        ExecuteLoadQueryEvent {
+            thread_id,
+            file_id,
+            start_pos,
+            end_pos,
+            schema,
+            query,
+            ..
+        } => {
+            assert_eq!(*thread_id, 23);
+            assert_eq!(*file_id, 1);
+            assert_eq!(*start_pos, 9);
+            assert_eq!(*end_pos, 37);
+            assert_eq!(schema, "default");
+            assert_eq!(query, "LOAD DATA INFILE '/tmp/data.txt' INTO TABLE `boxercrab` FIELDS TERMINATED BY ',' OPTIONALLY  ENCLOSED BY '\"' ESCAPED BY '\\\\' LINES TERMINATED BY '\\n' (`i`, `c`)");
+        }
+        _ => panic!("should be exec load query"),
+    }
+}
 
 #[test]
 fn test_update_row_v2() {

@@ -265,6 +265,9 @@ pub enum Event {
         start_pos: u32,
         end_pos: u32,
         dup_handling_flags: DupHandlingFlags,
+        status_vars: Vec<query::QueryStatusVar>,
+        schema: String,
+        query: String,
         checksum: u32,
     },
     TableMap {
@@ -406,7 +409,10 @@ impl Event {
             0x21 => parse_gtid(input, header),
             0x22 => parse_anonymous_gtid(input, header),
             0x23 => parse_previous_gtids(input, header),
-            _ => unreachable!(),
+            t @ _ => {
+                log::error!("unexpected event type: {:x}", t);
+                unreachable!();
+            }
         }
     }
 
@@ -896,6 +902,19 @@ fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a 
         2 => DupHandlingFlags::Replace,
         _ => unreachable!(),
     })(i)?;
+    let (i, raw_vars) = take(status_vars_length)(i)?;
+    let (remain, status_vars) = many0(query::parse_status_var)(raw_vars)?;
+    assert_eq!(remain.len(), 0);
+    let (i, schema) = map(take(schema_length), |s: &[u8]| {
+        String::from_utf8(s[0..schema_length as usize].to_vec()).unwrap()
+    })(i)?;
+    let (i, _) = take(1usize)(i)?;
+    let (i, query) = map(
+        take(
+            header.event_size - 19 - 26 - status_vars_length as u32 - schema_length as u32 - 1 - 4,
+        ),
+        |s: &[u8]| extract_string(s),
+    )(i)?;
     let (i, checksum) = le_u32(i)?;
     Ok((
         i,
@@ -910,6 +929,9 @@ fn parse_execute_load_query<'a>(input: &'a [u8], header: Header) -> IResult<&'a 
             start_pos,
             end_pos,
             dup_handling_flags,
+            status_vars,
+            schema,
+            query,
             checksum,
         },
     ))

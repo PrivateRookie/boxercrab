@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS `boxercrab`;
+
+CREATE TABLE `boxercrab` (
+    i INT AUTO_INCREMENT PRIMARY KEY,
+    c VARCHAR(10)
+);
+
+INSERT INTO `boxercrab` (i, c) VALUES(1, 'abc');
+
+SELECT * FROM `boxercrab` INTO OUTFILE '/tmp/data.txt' FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+
+DROP TABLE IF EXISTS `boxercrab`;
+
+CREATE TABLE `boxercrab` (
+    i INT AUTO_INCREMENT PRIMARY KEY,
+    c VARCHAR(10)
+);
+
+RESET MASTER;
+LOAD DATA INFILE '/tmp/data.txt' INTO TABLE `boxercrab`FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+
+flush logs;
