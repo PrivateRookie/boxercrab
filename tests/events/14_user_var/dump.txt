@@ -2,56 +2,55 @@
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at 4
-#200711  7:26:21 server id 1  end_log_pos 123 CRC32 0x2c94ba58 
+#200730 15:22:48 server id 1  end_log_pos 123 CRC32 0x995ec6cd 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#        4 9d 69 09 5f   0f   01 00 00 00   77 00 00 00   7b 00 00 00   01 00
+#        4 c8 e5 22 5f   0f   01 00 00 00   77 00 00 00   7b 00 00 00   00 00
 #       17 04 00 35 2e 37 2e 33 30  2d 6c 6f 67 00 00 00 00 |..5.7.30.log....|
 #       27 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
 #       37 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
-#       47 00 00 00 00 9d 69 09 5f  13 38 0d 00 08 00 12 00 |.....i...8......|
+#       47 00 00 00 00 c8 e5 22 5f  13 38 0d 00 08 00 12 00 |.........8......|
 #       57 04 04 04 04 12 00 00 5f  00 04 1a 08 00 00 00 08 |................|
 #       67 08 08 02 00 00 00 0a 0a  0a 2a 2a 00 12 34 00 01 |.............4..|
-#       77 58 ba 94 2c                                      |X...|
-# 	Start: binlog v 4, server v 5.7.30-log created 200711  7:26:21 at startup
-# Warning: this binlog is either in use or was not closed properly.
+#       77 cd c6 5e 99                                      |....|
+# 	Start: binlog v 4, server v 5.7.30-log created 200730 15:22:48 at startup
 ROLLBACK/*!*/;
 BINLOG '
-nWkJXw8BAAAAdwAAAHsAAAABAAQANS43LjMwLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAACdaQlfEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
-AVi6lCw=
+yOUiXw8BAAAAdwAAAHsAAAAAAAQANS43LjMwLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAADI5SJfEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+Ac3GXpk=
 '/*!*/;
 # at 123
-#200711  7:26:21 server id 1  end_log_pos 154 CRC32 0xb7697743 
+#200730 15:22:48 server id 1  end_log_pos 154 CRC32 0xc0c31f5a 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#       7b 9d 69 09 5f   23   01 00 00 00   1f 00 00 00   9a 00 00 00   80 00
-#       8e 00 00 00 00 00 00 00 00  43 77 69 b7             |........Cwi.|
+#       7b c8 e5 22 5f   23   01 00 00 00   1f 00 00 00   9a 00 00 00   80 00
+#       8e 00 00 00 00 00 00 00 00  5a 1f c3 c0             |........Z...|
 # 	Previous-GTIDs
 # [empty]
 # at 154
-#200711  7:26:21 server id 1  end_log_pos 219 CRC32 0x32b434ed 
+#200730 15:22:48 server id 1  end_log_pos 219 CRC32 0x367f5c31 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#       9a 9d 69 09 5f   22   01 00 00 00   41 00 00 00   db 00 00 00   00 00
-#       ad 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
-#       bd 00 00 00 00 00 00 00 00  00 02 00 00 00 00 00 00 |................|
-#       cd 00 00 01 00 00 00 00 00  00 00 ed 34 b4 32       |...........4.2|
-# 	Anonymous_GTID	last_committed=0	sequence_number=1	rbr_only=no
-SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+#       9a c8 e5 22 5f   21   01 00 00 00   41 00 00 00   db 00 00 00   00 00
+#       ad 01 e3 e2 a4 ee b6 dc 11  ea 8b cf 02 42 ac 15 00 |............B...|
+#       bd 02 01 00 00 00 00 00 00  00 02 00 00 00 00 00 00 |................|
+#       cd 00 00 01 00 00 00 00 00  00 00 31 5c 7f 36       |..........1..6|
+# 	GTID	last_committed=0	sequence_number=1	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'e3e2a4ee-b6dc-11ea-8bcf-0242ac150002:1'/*!*/;
 # at 219
-#200711  7:26:21 server id 1  end_log_pos 357 CRC32 0x1cdd0955 
+#200730 15:22:48 server id 1  end_log_pos 357 CRC32 0x8bcd8ffb 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#       db 9d 69 09 5f   02   01 00 00 00   8a 00 00 00   65 01 00 00   04 00
-#       ee 03 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
+#       db c8 e5 22 5f   02   01 00 00 00   8a 00 00 00   65 01 00 00   04 00
+#       ee 12 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
 #       fe 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
 #      10e 04 21 00 21 00 2d 00 0c  01 64 65 66 61 75 6c 74 |.........default|
 #      11e 00 64 65 66 61 75 6c 74  00 44 52 4f 50 20 54 41 |.default.DROP.TA|
 #      12e 42 4c 45 20 49 46 20 45  58 49 53 54 53 20 60 62 |BLE.IF.EXISTS..b|
 #      13e 6f 78 65 72 63 72 61 62  60 20 2f 2a 20 67 65 6e |oxercrab.....gen|
 #      14e 65 72 61 74 65 64 20 62  79 20 73 65 72 76 65 72 |erated.by.server|
-#      15e 20 2a 2f 55 09 dd 1c                             |...U...|
-# 	Query	thread_id=3	exec_time=0	error_code=0
+#      15e 20 2a 2f fb 8f cd 8b                             |.......|
+# 	Query	thread_id=18	exec_time=0	error_code=0
 use `default`/*!*/;
-SET TIMESTAMP=1594452381/*!*/;
-SET @@session.pseudo_thread_id=3/*!*/;
+SET TIMESTAMP=1596122568/*!*/;
+SET @@session.pseudo_thread_id=18/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
 SET @@session.sql_mode=1436549152/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
@@ -62,101 +61,130 @@ SET @@session.collation_database=DEFAULT/*!*/;
 DROP TABLE IF EXISTS `boxercrab` /* generated by server */
 /*!*/;
 # at 357
-#200711  7:26:21 server id 1  end_log_pos 422 CRC32 0x5c25d678 
+#200730 15:22:48 server id 1  end_log_pos 422 CRC32 0x6d0308f7 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      165 9d 69 09 5f   22   01 00 00 00   41 00 00 00   a6 01 00 00   00 00
-#      178 01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
-#      188 00 00 00 00 00 00 00 00  00 02 01 00 00 00 00 00 |................|
-#      198 00 00 02 00 00 00 00 00  00 00 78 d6 25 5c       |..........x...|
-# 	Anonymous_GTID	last_committed=1	sequence_number=2	rbr_only=no
-SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
+#      165 c8 e5 22 5f   21   01 00 00 00   41 00 00 00   a6 01 00 00   00 00
+#      178 01 e3 e2 a4 ee b6 dc 11  ea 8b cf 02 42 ac 15 00 |............B...|
+#      188 02 02 00 00 00 00 00 00  00 02 01 00 00 00 00 00 |................|
+#      198 00 00 02 00 00 00 00 00  00 00 f7 08 03 6d       |.............m|
+# 	GTID	last_committed=1	sequence_number=2	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'e3e2a4ee-b6dc-11ea-8bcf-0242ac150002:2'/*!*/;
 # at 422
-#200711  7:26:21 server id 1  end_log_pos 755 CRC32 0xb5bc36eb 
+#200730 15:22:48 server id 1  end_log_pos 719 CRC32 0xc27db9a9 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      1a6 9d 69 09 5f   02   01 00 00 00   4d 01 00 00   f3 02 00 00   00 00
-#      1b9 03 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
+#      1a6 c8 e5 22 5f   02   01 00 00 00   29 01 00 00   cf 02 00 00   00 00
+#      1b9 12 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
 #      1c9 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
 #      1d9 04 21 00 21 00 2d 00 0c  01 64 65 66 61 75 6c 74 |.........default|
 #      1e9 00 64 65 66 61 75 6c 74  00 43 52 45 41 54 45 20 |.default.CREATE.|
 #      1f9 54 41 42 4c 45 20 60 62  6f 78 65 72 63 72 61 62 |TABLE..boxercrab|
 #      209 60 20 28 0a 20 20 20 20  60 69 64 60 20 49 4e 54 |.........id..INT|
 #      219 20 55 4e 53 49 47 4e 45  44 20 41 55 54 4f 5f 49 |.UNSIGNED.AUTO.I|
-#      229 4e 43 52 45 4d 45 4e 54  2c 0a 20 20 20 20 60 74 |NCREMENT.......t|
-#      239 69 74 6c 65 60 20 56 41  52 43 48 41 52 28 31 30 |itle..VARCHAR.10|
-#      249 30 29 20 4e 4f 54 20 4e  55 4c 4c 2c 0a 20 20 20 |0..NOT.NULL.....|
-#      259 20 60 61 75 74 68 6f 72  60 20 56 41 52 43 48 41 |..author..VARCHA|
-#      269 52 28 34 30 29 20 4e 4f  54 20 4e 55 4c 4c 2c 0a |R.40..NOT.NULL..|
-#      279 20 20 20 20 60 74 69 6d  65 60 20 44 41 54 45 54 |.....time..DATET|
-#      289 49 4d 45 20 4e 4f 54 20  4e 55 4c 4c 2c 0a 20 20 |IME.NOT.NULL....|
-#      299 20 20 60 73 63 6f 72 65  60 20 49 4e 54 20 44 45 |...score..INT.DE|
-#      2a9 46 41 55 4c 54 20 30 2c  0a 20 20 20 20 50 52 49 |FAULT.0......PRI|
-#      2b9 4d 41 52 59 20 4b 45 59  20 28 60 69 64 60 29 0a |MARY.KEY...id...|
-#      2c9 29 45 4e 47 49 4e 45 3d  49 6e 6e 6f 44 42 20 44 |.ENGINE.InnoDB.D|
-#      2d9 45 46 41 55 4c 54 20 43  48 41 52 53 45 54 3d 75 |EFAULT.CHARSET.u|
-#      2e9 74 66 38 6d 62 34 eb 36  bc b5                   |tf8mb4.6..|
-# 	Query	thread_id=3	exec_time=0	error_code=0
-SET TIMESTAMP=1594452381/*!*/;
+#      229 4e 43 52 45 4d 45 4e 54  2c 0a 20 20 20 20 60 73 |NCREMENT.......s|
+#      239 74 72 60 20 56 41 52 43  48 41 52 28 34 30 29 20 |tr..VARCHAR.40..|
+#      249 4e 4f 54 20 4e 55 4c 4c  2c 0a 20 20 20 20 60 69 |NOT.NULL.......i|
+#      259 6e 74 60 20 49 4e 54 20  4e 4f 54 20 4e 55 4c 4c |nt..INT.NOT.NULL|
+#      269 2c 0a 20 20 20 20 60 64  65 63 60 20 44 45 43 49 |.......dec..DECI|
+#      279 4d 41 4c 28 31 30 2c 20  34 29 20 4e 4f 54 20 4e |MAL.10..4..NOT.N|
+#      289 55 4c 4c 2c 0a 20 20 20  20 50 52 49 4d 41 52 59 |ULL......PRIMARY|
+#      299 20 4b 45 59 20 28 60 69  64 60 29 0a 29 45 4e 47 |.KEY...id....ENG|
+#      2a9 49 4e 45 3d 49 6e 6e 6f  44 42 20 44 45 46 41 55 |INE.InnoDB.DEFAU|
+#      2b9 4c 54 20 43 48 41 52 53  45 54 3d 75 74 66 38 6d |LT.CHARSET.utf8m|
+#      2c9 62 34 a9 b9 7d c2                                |b4....|
+# 	Query	thread_id=18	exec_time=0	error_code=0
+SET TIMESTAMP=1596122568/*!*/;
 CREATE TABLE `boxercrab` (
     `id` INT UNSIGNED AUTO_INCREMENT,
-    `title` VARCHAR(100) NOT NULL,
-    `author` VARCHAR(40) NOT NULL,
-    `time` DATETIME NOT NULL,
-    `score` INT DEFAULT 0,
+    `str` VARCHAR(40) NOT NULL,
+    `int` INT NOT NULL,
+    `dec` DECIMAL(10, 4) NOT NULL,
     PRIMARY KEY (`id`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 /*!*/;
-# at 755
-#200711  7:26:21 server id 1  end_log_pos 820 CRC32 0x0517ee58 
+# at 719
+#200730 15:22:48 server id 1  end_log_pos 784 CRC32 0x1dbd15c3 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      2f3 9d 69 09 5f   22   01 00 00 00   41 00 00 00   34 03 00 00   00 00
-#      306 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
-#      316 00 00 00 00 00 00 00 00  00 02 02 00 00 00 00 00 |................|
-#      326 00 00 03 00 00 00 00 00  00 00 58 ee 17 05       |..........X...|
-# 	Anonymous_GTID	last_committed=2	sequence_number=3	rbr_only=yes
-/*!50718 SET TRANSACTION ISOLATION LEVEL READ COMMITTED*//*!*/;
-SET @@SESSION.GTID_NEXT= 'ANONYMOUS'/*!*/;
-# at 820
-#200711  7:26:21 server id 1  end_log_pos 895 CRC32 0x6d4a575d 
+#      2cf c8 e5 22 5f   21   01 00 00 00   41 00 00 00   10 03 00 00   00 00
+#      2e2 01 e3 e2 a4 ee b6 dc 11  ea 8b cf 02 42 ac 15 00 |............B...|
+#      2f2 02 03 00 00 00 00 00 00  00 02 02 00 00 00 00 00 |................|
+#      302 00 00 03 00 00 00 00 00  00 00 c3 15 bd 1d       |..............|
+# 	GTID	last_committed=2	sequence_number=3	rbr_only=no
+SET @@SESSION.GTID_NEXT= 'e3e2a4ee-b6dc-11ea-8bcf-0242ac150002:3'/*!*/;
+# at 784
+#200730 15:22:48 server id 1  end_log_pos 869 CRC32 0x4437bfcc 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      334 9d 69 09 5f   02   01 00 00 00   4b 00 00 00   7f 03 00 00   08 00
-#      347 03 00 00 00 00 00 00 00  07 00 00 1a 00 00 00 00 |................|
-#      357 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
-#      367 04 21 00 21 00 2d 00 64  65 66 61 75 6c 74 00 42 |.......default.B|
-#      377 45 47 49 4e 5d 57 4a 6d                          |EGIN.WJm|
-# 	Query	thread_id=3	exec_time=0	error_code=0
-SET TIMESTAMP=1594452381/*!*/;
+#      310 c8 e5 22 5f   02   01 00 00 00   55 00 00 00   65 03 00 00   08 00
+#      323 12 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
+#      333 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      343 04 21 00 21 00 2d 00 0c  01 64 65 66 61 75 6c 74 |.........default|
+#      353 00 64 65 66 61 75 6c 74  00 42 45 47 49 4e cc bf |.default.BEGIN..|
+#      363 37 44                                            |7D|
+# 	Query	thread_id=18	exec_time=0	error_code=0
+SET TIMESTAMP=1596122568/*!*/;
 BEGIN
 /*!*/;
-# at 895
-#200711  7:26:21 server id 1  end_log_pos 959 CRC32 0x77a62c4c 
+# at 869
+# at 901
+# at 952
+# at 1003
+# at 1049
+#200730 15:22:48 server id 1  end_log_pos 901 CRC32 0x98f8870c 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      37f 9d 69 09 5f   13   01 00 00 00   40 00 00 00   bf 03 00 00   00 00
-#      392 6c 00 00 00 00 00 01 00  07 64 65 66 61 75 6c 74 |l........default|
-#      3a2 00 09 62 6f 78 65 72 63  72 61 62 00 05 03 0f 0f |..boxercrab.....|
-#      3b2 12 03 05 90 01 a0 00 00  10 4c 2c a6 77          |.........L..w|
-# 	Table_map: `default`.`boxercrab` mapped to number 108
-# at 959
-#200711  7:26:21 server id 1  end_log_pos 1022 CRC32 0x4fc59f67 
+#      365 c8 e5 22 5f   05   01 00 00 00   20 00 00 00   85 03 00 00   00 00
+#      378 02 01 00 00 00 00 00 00  00 0c 87 f8 98          |.............|
+# 	Intvar
+SET INSERT_ID=1/*!*/;
+#200730 15:22:48 server id 1  end_log_pos 952 CRC32 0x648fc14f 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      3bf 9d 69 09 5f   1e   01 00 00 00   3f 00 00 00   fe 03 00 00   00 00
-#      3d2 6c 00 00 00 00 00 01 00  02 00 05 ff e0 01 00 00 |l...............|
-#      3e2 00 09 00 74 65 73 74 20  62 6c 6f 67 02 78 64 99 |...test.blog.xd.|
-#      3f2 a6 d6 00 00 0c 00 00 00  67 9f c5 4f             |........g..O|
-# 	Write_rows: table id 108 flags: STMT_END_F
-
-BINLOG '
-nWkJXxMBAAAAQAAAAL8DAAAAAGwAAAAAAAEAB2RlZmF1bHQACWJveGVyY3JhYgAFAw8PEgMFkAGg
-AAAQTCymdw==
-nWkJXx4BAAAAPwAAAP4DAAAAAGwAAAAAAAEAAgAF/+ABAAAACQB0ZXN0IGJsb2cCeGSZptYAAAwA
-AABnn8VP
-'/*!*/;
-# at 1022
-#200711  7:26:21 server id 1  end_log_pos 1053 CRC32 0x1d56f934 
+#      385 c8 e5 22 5f   0e   01 00 00 00   33 00 00 00   b8 03 00 00   00 00
+#      398 05 00 00 00 76 61 6c 5f  73 00 00 21 00 00 00 09 |....val.s.......|
+#      3a8 00 00 00 74 65 73 74 20  62 6c 6f 67 4f c1 8f 64 |...test.blogO..d|
+# 	User_var
+SET @`val_s`:=_utf8 0x7465737420626C6F67 COLLATE `utf8_general_ci`/*!*/;
+#200730 15:22:48 server id 1  end_log_pos 1003 CRC32 0x8c9e3cb3 
 # Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
-#      3fe 9d 69 09 5f   10   01 00 00 00   1f 00 00 00   1d 04 00 00   00 00
-#      411 09 00 00 00 00 00 00 00  34 f9 56 1d             |........4.V.|
-# 	Xid = 9
+#      3b8 c8 e5 22 5f   0e   01 00 00 00   33 00 00 00   eb 03 00 00   00 00
+#      3cb 05 00 00 00 76 61 6c 5f  69 00 02 21 00 00 00 08 |....val.i.......|
+#      3db 00 00 00 64 00 00 00 00  00 00 00 00 b3 3c 9e 8c |...d............|
+# 	User_var
+SET @`val_i`:=100/*!*/;
+#200730 15:22:48 server id 1  end_log_pos 1049 CRC32 0xa18847dd 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      3eb c8 e5 22 5f   0e   01 00 00 00   2e 00 00 00   19 04 00 00   00 00
+#      3fe 05 00 00 00 76 61 6c 5f  64 00 04 21 00 00 00 04 |....val.d.......|
+#      40e 00 00 00 03 02 81 00 dd  47 88 a1                |........G..|
+# 	User_var
+SET @`val_d`:=1.00/*!*/;
+#200730 15:22:48 server id 1  end_log_pos 1206 CRC32 0x613d0b41 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      419 c8 e5 22 5f   02   01 00 00 00   9d 00 00 00   b6 04 00 00   00 00
+#      42c 12 00 00 00 00 00 00 00  07 00 00 24 00 00 00 00 |................|
+#      43c 00 00 01 20 00 a0 55 00  00 00 00 06 03 73 74 64 |......U......std|
+#      44c 04 21 00 21 00 2d 00 0c  01 64 65 66 61 75 6c 74 |.........default|
+#      45c 00 64 65 66 61 75 6c 74  00 49 4e 53 45 52 54 20 |.default.INSERT.|
+#      46c 49 4e 54 4f 20 60 62 6f  78 65 72 63 72 61 62 60 |INTO..boxercrab.|
+#      47c 20 28 60 73 74 72 60 2c  20 60 69 6e 74 60 2c 20 |...str....int...|
+#      48c 60 64 65 63 60 29 20 56  41 4c 55 45 53 20 28 40 |.dec...VALUES...|
+#      49c 76 61 6c 5f 73 2c 20 40  76 61 6c 5f 69 2c 20 40 |val.s...val.i...|
+#      4ac 76 61 6c 5f 64 29 41 0b  3d 61                   |val.d.A..a|
+# 	Query	thread_id=18	exec_time=0	error_code=0
+SET TIMESTAMP=1596122568/*!*/;
+INSERT INTO `boxercrab` (`str`, `int`, `dec`) VALUES (@val_s, @val_i, @val_d)
+/*!*/;
+# at 1206
+#200730 15:22:48 server id 1  end_log_pos 1237 CRC32 0x5f897806 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      4b6 c8 e5 22 5f   10   01 00 00 00   1f 00 00 00   d5 04 00 00   00 00
+#      4c9 53 00 00 00 00 00 00 00  06 78 89 5f             |S........x..|
+# 	Xid = 83
 COMMIT/*!*/;
+# at 1237
+#200730 15:22:48 server id 1  end_log_pos 1284 CRC32 0xc9932a1a 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#      4d5 c8 e5 22 5f   04   01 00 00 00   2f 00 00 00   04 05 00 00   00 00
+#      4e8 04 00 00 00 00 00 00 00  6d 79 73 71 6c 5f 62 69 |........mysql.bi|
+#      4f8 6e 2e 30 30 30 30 30 32  1a 2a 93 c9             |n.000002....|
+# 	Rotate to mysql_bin.000002  pos: 4
 SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
 DELIMITER ;
 # End of log file

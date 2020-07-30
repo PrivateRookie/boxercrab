@@ -161,7 +161,7 @@ pub enum Event {
         checksum: u32,
     },
     // ref: https://dev.mysql.com/doc/internals/en/append-block-event.html
-    AppendFile {
+    AppendBlock {
         header: Header,
         file_id: u32,
         block_data: String,
@@ -223,7 +223,7 @@ pub enum Event {
         name_length: u32,
         name: String,
         is_null: bool,
-        d_type: Option<u8>,
+        d_type: Option<UserVarType>,
         charset: Option<u32>,
         value_length: Option<u32>,
         value: Option<Vec<u8>>,
@@ -388,7 +388,7 @@ impl Event {
             0x06 => parse_load(input, header),
             0x07 => parse_slave(input, header),
             0x08 => parse_create_file(input, header),
-            0x09 => parse_append_file(input, header),
+            0x09 => parse_append_block(input, header),
             0x0a => parse_exec_load(input, header),
             0x0b => parse_delete_file(input, header),
             0x0c => parse_new_load(input, header),
@@ -682,11 +682,11 @@ fn parse_create_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], E
     ))
 }
 
-fn parse_append_file<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
+fn parse_append_block<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, (file_id, block_data, checksum)) = parse_file_data(input, &header)?;
     Ok((
         i,
-        Event::AppendFile {
+        Event::AppendBlock {
             header,
             file_id,
             block_data,
@@ -783,14 +783,25 @@ fn parse_rand<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     ))
 }
 
+#[derive(Debug, PartialEq, Serialize, Clone)]
+pub enum UserVarType {
+    STRING = 0,
+    REAL = 1,
+    INT = 2,
+    ROW = 3,
+    DECIMAL = 4,
+    VALUE_TYPE_COUNT = 5,
+    Unknown,
+}
+
 fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
     let (i, name_length) = le_u32(input)?;
     let (i, name) = map(take(name_length), |s: &[u8]| {
         string_var(s, name_length as usize)
     })(i)?;
     let (i, is_null) = map(le_u8, |v| v == 1)(i)?;
-    let (i, checksum) = le_u32(i)?;
     if is_null {
+        let (i, checksum) = le_u32(i)?;
         Ok((
             i,
             Event::UserVar {
@@ -807,11 +818,26 @@ fn parse_user_var<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Even
             },
         ))
     } else {
-        let (i, d_type) = map(le_u8, |v| Some(v))(i)?;
+        let (i, d_type) = map(le_u8, |v| match v {
+            0 => Some(UserVarType::STRING),
+            1 => Some(UserVarType::REAL),
+            2 => Some(UserVarType::INT),
+            3 => Some(UserVarType::ROW),
+            4 => Some(UserVarType::DECIMAL),
+            5 => Some(UserVarType::VALUE_TYPE_COUNT),
+            _ => Some(UserVarType::Unknown),
+        })(i)?;
         let (i, charset) = map(le_u32, |v| Some(v))(i)?;
         let (i, value_length) = le_u32(i)?;
         let (i, value) = map(take(value_length), |s: &[u8]| Some(s.to_vec()))(i)?;
-        let (i, flags) = map(le_u8, |v| Some(v))(i)?;
+        // TODO still don't know wether should take flag or not
+        let (i, flags) = match d_type.clone().unwrap() {
+            UserVarType::INT => {
+                let (i, flags) = map(le_u8, |v| Some(v))(i)?;
+                (i, flags)
+            }
+            _ => (i, None),
+        };
         let (i, checksum) = le_u32(i)?;
         Ok((
             i,

@@ -1,0 +1,14 @@
+
+[mysql.server]
+character-set = utf8mb4 
+collation = utf8mb4_unicode_ci
+
+[mysqld]
+gtid-mode = ON
+enforce-gtid-consistency = 1
+server-id = 1
+character-set-server = utf8mb4
+log-bin = mysql_bin
+binlog-do-db = default
+secure_file_priv='/tmp'
+binlog_format=row

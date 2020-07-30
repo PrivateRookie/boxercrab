@@ -2,21 +2,14 @@ DROP TABLE IF EXISTS `boxercrab`;
 
 CREATE TABLE `boxercrab` (
     `id` INT UNSIGNED AUTO_INCREMENT,
-    `title` VARCHAR(100) NOT NULL,
-    `author` VARCHAR(40) NOT NULL,
-    `time` DATETIME NOT NULL,
-    `score` INT DEFAULT 0,
+    `str` VARCHAR(40) NOT NULL,
+    `int` INT NOT NULL,
+    `dec` DECIMAL(10, 4) NOT NULL,
     PRIMARY KEY (`id`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-SET @title := "test blog";
+SET @val_s := "test blog";
+SET @val_i := 100;
+SET @val_d := 1.00;
 
-INSERT INTO `boxercrab` (`title`, `author`, `time`, `score`) VALUES ('test_blog', 'xd', '2020-07-11', 12);
-
-
-CREATE TABLE `boxercrab` (
-    `id` INT UNSIGNED AUTO_INCREMENT,
-    `title` VARCHAR(100) NOT NULL,
-    `author` VARCHAR(40) NOT NULL,
-    PRIMARY KEY (`id`)
-)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO `boxercrab` (`str`, `int`, `dec`) VALUES (@val_s, @val_i, @val_d);

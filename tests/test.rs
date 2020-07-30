@@ -47,6 +47,84 @@ fn test_intvar() {
 }
 
 #[test]
+fn test_rand() {
+    let input = include_bytes!("events/13_rand/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(8).unwrap() {
+        Rand { seed1, seed2, .. } => {
+            assert_eq!(*seed1, 694882935);
+            assert_eq!(*seed2, 292094996);
+        }
+        _ => panic!("should be rand"),
+    }
+}
+
+#[test]
+fn test_user_var() {
+    use boxercrab::events::UserVarType;
+
+    let input = include_bytes!("events/14_user_var/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    // TODO need to test other types & null var
+    match output.get(9).unwrap() {
+        UserVar {
+            name,
+            d_type,
+            charset,
+            value,
+            ..
+        } => {
+            assert_eq!(name, "val_s");
+            assert_eq!(*d_type, Some(UserVarType::STRING));
+            assert_eq!(*charset, Some(33));
+            assert_eq!(
+                *value,
+                Some(vec![116, 101, 115, 116, 32, 98, 108, 111, 103])
+            )
+        }
+        _ => panic!("should be user var"),
+    }
+    match output.get(10).unwrap() {
+        UserVar {
+            name,
+            d_type,
+            charset,
+            value,
+            ..
+        } => {
+            assert_eq!(name, "val_i");
+            assert_eq!(*d_type, Some(UserVarType::INT));
+            assert_eq!(*charset, Some(33));
+            assert_eq!(
+                *value,
+                Some(vec![100, 0, 0, 0, 0, 0, 0, 0])
+            )
+        }
+        _ => panic!("should be user var"),
+    }
+    match output.get(11).unwrap() {
+        UserVar {
+            name,
+            d_type,
+            charset,
+            value,
+            ..
+        } => {
+            assert_eq!(name, "val_d");
+            assert_eq!(*d_type, Some(UserVarType::DECIMAL));
+            assert_eq!(*charset, Some(33));
+            assert_eq!(
+                *value,
+                Some(vec![03, 02, 129, 0])
+            )
+        }
+        _ => panic!("should be user var"),
+    }
+}
+
+#[test]
 fn test_begin_load_query_and_exec_load_query() {
     let input = include_bytes!("events/17_18_load/log.bin");
     let (remain, output) = Event::from_bytes(input).unwrap();

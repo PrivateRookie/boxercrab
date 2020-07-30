@@ -1,0 +1,18 @@
+version: '3'
+services:
+  db:
+    image: mysql:5.7
+    ports:
+      - 0.0.0.0:3306:3306
+    volumes:
+      - mysql-db:/var/lib/mysql
+      - ./conf:/etc/mysql/conf.d
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=1234TttT
+      - MYSQL_USER=rookie
+      - MYSQL_PASSWORD=1234TttT
+      - MYSQL_DATABASE=default
+
+volumes:
+  mysql-db:
