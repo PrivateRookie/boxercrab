@@ -2,7 +2,7 @@
 authors = ["PrivateRookie <996514515@qq.com>"]
 edition = "2018"
 name = "boxercrab"
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies]
 log = "0.4.8"
