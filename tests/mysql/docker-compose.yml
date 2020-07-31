@@ -1,7 +1,7 @@
 version: '3'
 services:
   db:
-    image: mysql:5.7
+    image: mysql:5.7.30
     ports:
       - 0.0.0.0:3306:3306
     volumes:

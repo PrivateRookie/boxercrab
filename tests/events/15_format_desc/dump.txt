@@ -1,0 +1,40 @@
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#200731  6:07:14 server id 1  end_log_pos 123 CRC32 0x5b1860c0 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#        4 12 b5 23 5f   0f   01 00 00 00   77 00 00 00   7b 00 00 00   00 00
+#       17 04 00 35 2e 37 2e 33 30  2d 6c 6f 67 00 00 00 00 |..5.7.30.log....|
+#       27 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       37 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+#       47 00 00 00 00 12 b5 23 5f  13 38 0d 00 08 00 12 00 |.........8......|
+#       57 04 04 04 04 12 00 00 5f  00 04 1a 08 00 00 00 08 |................|
+#       67 08 08 02 00 00 00 0a 0a  0a 2a 2a 00 12 34 00 01 |.............4..|
+#       77 c0 60 18 5b                                      |....|
+# 	Start: binlog v 4, server v 5.7.30-log created 200731  6:07:14 at startup
+ROLLBACK/*!*/;
+BINLOG '
+ErUjXw8BAAAAdwAAAHsAAAAAAAQANS43LjMwLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAStSNfEzgNAAgAEgAEBAQEEgAAXwAEGggAAAAICAgCAAAACgoKKioAEjQA
+AcBgGFs=
+'/*!*/;
+# at 123
+#200731  6:07:14 server id 1  end_log_pos 154 CRC32 0x76bb032c 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       7b 12 b5 23 5f   23   01 00 00 00   1f 00 00 00   9a 00 00 00   80 00
+#       8e 00 00 00 00 00 00 00 00  2c 03 bb 76             |...........v|
+# 	Previous-GTIDs
+# [empty]
+# at 154
+#200731  6:07:14 server id 1  end_log_pos 201 CRC32 0x728dacdd 
+# Position  Timestamp   Type   Master ID        Size      Master Pos    Flags 
+#       9a 12 b5 23 5f   04   01 00 00 00   2f 00 00 00   c9 00 00 00   00 00
+#       ad 04 00 00 00 00 00 00 00  6d 79 73 71 6c 5f 62 69 |........mysql.bi|
+#       bd 6e 2e 30 30 30 30 30 32  dd ac 8d 72             |n.000002...r|
+# 	Rotate to mysql_bin.000002  pos: 4
+SET @@SESSION.GTID_NEXT= 'AUTOMATIC' /* added by mysqlbinlog */ /*!*/;
+DELIMITER ;
+# End of log file
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;

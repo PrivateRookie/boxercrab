@@ -8,7 +8,7 @@ function mysql_exec() {
 }
 
 function dump_binlog() {
-    docker container exec -it mysql_db_1 mysqlbinlog -H /var/lib/mysql/mysql_bin.000001 > $1
+    docker container exec -it mysql_db_1 mysqlbinlog -H -vvvvvv /var/lib/mysql/mysql_bin.000001 > $1
 }
 
 function cp_binlog () {

@@ -1,0 +1,2 @@
+reset master;
+flush logs;

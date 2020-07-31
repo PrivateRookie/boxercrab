@@ -12,3 +12,4 @@ log-bin = mysql_bin
 binlog-do-db = default
 secure_file_priv='/tmp'
 binlog_format=row
+binlog_rows_query_log_events=true

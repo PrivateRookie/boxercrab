@@ -97,10 +97,7 @@ fn test_user_var() {
             assert_eq!(name, "val_i");
             assert_eq!(*d_type, Some(UserVarType::INT));
             assert_eq!(*charset, Some(33));
-            assert_eq!(
-                *value,
-                Some(vec![100, 0, 0, 0, 0, 0, 0, 0])
-            )
+            assert_eq!(*value, Some(vec![100, 0, 0, 0, 0, 0, 0, 0]))
         }
         _ => panic!("should be user var"),
     }
@@ -115,12 +112,83 @@ fn test_user_var() {
             assert_eq!(name, "val_d");
             assert_eq!(*d_type, Some(UserVarType::DECIMAL));
             assert_eq!(*charset, Some(33));
-            assert_eq!(
-                *value,
-                Some(vec![03, 02, 129, 0])
-            )
+            assert_eq!(*value, Some(vec![03, 02, 129, 0]))
         }
         _ => panic!("should be user var"),
+    }
+}
+
+#[test]
+fn test_format_desc() {
+    let input = include_bytes!("events/15_format_desc/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(0).unwrap() {
+        FormatDesc {
+            binlog_version,
+            mysql_server_version,
+            create_timestamp,
+            ..
+        } => {
+            assert_eq!(*binlog_version, 4);
+            assert_eq!(mysql_server_version, "5.7.30-log");
+            assert_eq!(*create_timestamp, 1596175634)
+        }
+        _ => panic!("should be format desc"),
+    }
+}
+
+#[test]
+fn test_xid() {
+    let input = include_bytes!("events/16_xid/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(10).unwrap() {
+        XID { xid, .. } => {
+            assert_eq!(*xid, 41);
+        }
+        _ => panic!("should be xid"),
+    }
+}
+
+#[test]
+fn test_table_map() {
+    use boxercrab::mysql::ColTypes::*;
+
+    // TODO need to test more column types
+    let input = include_bytes!("events/19_table_map/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(8).unwrap() {
+        TableMap {
+            table_id,
+            table_name,
+            flags,
+            columns_type,
+            null_bits,
+            ..
+        } => {
+            assert_eq!(*table_id, 110);
+            assert_eq!(table_name, "boxercrab");
+            assert_eq!(*flags, 1);
+            assert_eq!(*columns_type, vec![Long, VarChar(160)]);
+            assert_eq!(*null_bits, vec![0]);
+        }
+        _ => panic!("should be table_map"),
+    }
+}
+
+#[test]
+fn test_row_query() {
+    let input = include_bytes!("events/29_row_query/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(8).unwrap() {
+        RowQuery { query_text, .. } => assert_eq!(
+            query_text,
+            "INSERT INTO `boxercrab` (`title`) VALUES ('hahhhhhhhhh')"
+        ),
+        _ => panic!("should be row_query"),
     }
 }
 
@@ -162,7 +230,35 @@ fn test_begin_load_query_and_exec_load_query() {
 }
 
 #[test]
-fn test_update_row_v2() {
+fn test_write_rows_v2() {
+    use boxercrab::mysql::ColValues;
+
+    let input = include_bytes!("events/30_write_rows_v2/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(10).unwrap() {
+        WriteRowsV2 {
+            table_id,
+            column_count,
+            rows,
+            ..
+        } => {
+            assert_eq!(*table_id, 111);
+            assert_eq!(*column_count, 2);
+            assert_eq!(
+                *rows,
+                vec![vec![
+                    Long(vec![1, 0, 0, 0]),
+                    VarChar(vec![97, 98, 99, 100, 101])
+                ]]
+            )
+        }
+        _ => panic!("should write_rows_v2"),
+    }
+}
+
+#[test]
+fn test_update_rows_v2() {
     let input = include_bytes!("events/31_update_rows_v2/log.bin");
     let (_, output) = Event::from_bytes(input).unwrap();
     let update_row = output.get(5).unwrap();
