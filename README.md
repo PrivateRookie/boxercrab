@@ -3,6 +3,7 @@ MySQL binlog parser impl with Rust
 
 ![Rust](https://github.com/PrivateRookie/boxercrab/workflows/Rust/badge.svg)
 [![BoxerCrab](https://tokei.rs/b1/github/PrivateRookie/boxercrab?category=code)](https://github.com/PrivateRookie/boxercrab)
+![Code Coverage](https://github.com/PrivateRookie/boxercrab/workflows/Code%20Coverage/badge.svg)
 
 Boxercrab tried to parse every field in binlog, but for the reasons of documentation, ability, etc., some fields could not be parsed yet. Missing fields are
 
