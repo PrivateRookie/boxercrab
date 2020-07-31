@@ -231,8 +231,6 @@ fn test_begin_load_query_and_exec_load_query() {
 
 #[test]
 fn test_write_rows_v2() {
-    use boxercrab::mysql::ColValues;
-
     let input = include_bytes!("events/30_write_rows_v2/log.bin");
     let (remain, output) = Event::from_bytes(input).unwrap();
     assert_eq!(remain.len(), 0);
@@ -291,5 +289,96 @@ fn test_update_rows_v2() {
     match update_row {
         UpdateRowsV2 { rows, .. } => assert_eq!(rows, &values),
         _ => panic!("should be update_row_v2"),
+    }
+}
+
+#[test]
+fn test_delete_rows_v2() {
+    let input = include_bytes!("events/32_delete_rows_v2/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(16).unwrap() {
+        DeleteRowsV2 {
+            table_id,
+            column_count,
+            rows,
+            ..
+        } => {
+            assert_eq!(*table_id, 112);
+            assert_eq!(*column_count, 2);
+            assert_eq!(
+                *rows,
+                vec![vec![
+                    Long(vec![1, 0, 0, 0]),
+                    VarChar(vec![97, 98, 99, 100, 101])
+                ]]
+            )
+        }
+        _ => panic!("should be delete rows v2"),
+    }
+}
+
+#[test]
+fn test_gtid() {
+    let input = include_bytes!("events/33_35_gtid_prev_gtid/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(2).unwrap() {
+        Gtid {
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
+            ..
+        } => {
+            assert_eq!(*rbr_only, false);
+            assert_eq!(source_id, "12884158204-210242-17234-183144-2661721902");
+            assert_eq!(transaction_id, "10000000");
+            assert_eq!(*ts_type, 2);
+            assert_eq!(*last_committed, 0);
+            assert_eq!(*sequence_number, 1);
+        }
+        _ => panic!("should be gtid"),
+    }
+}
+
+#[test]
+fn test_anonymous_gtid() {
+    let input = include_bytes!("events/34_anonymous_gtid/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(2).unwrap() {
+        AnonymousGtid {
+            rbr_only,
+            source_id,
+            transaction_id,
+            ts_type,
+            last_committed,
+            sequence_number,
+            ..
+        } => {
+            assert_eq!(*rbr_only, false);
+            assert_eq!(source_id, "0000-00-00-00-000000");
+            assert_eq!(transaction_id, "00000000");
+            assert_eq!(*ts_type, 2);
+            assert_eq!(*last_committed, 0);
+            assert_eq!(*sequence_number, 1);
+        }
+        _ => panic!("should be anonymous gtid"),
+    }
+}
+
+#[test]
+fn test_previous_gtid() {
+    let input = include_bytes!("events/33_35_gtid_prev_gtid/log.bin");
+    let (remain, output) = Event::from_bytes(input).unwrap();
+    assert_eq!(remain.len(), 0);
+    match output.get(1).unwrap() {
+        PreviousGtids { gtid_sets, .. } => {
+            assert_eq!(*gtid_sets, vec![0, 0, 0, 0]);
+        }
+        _ => panic!("should be previous gtid"),
     }
 }
