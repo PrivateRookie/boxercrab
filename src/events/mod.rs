@@ -17,8 +17,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-mod query;
-mod rows;
+pub mod query;
+pub mod rows;
 
 lazy_static! {
     static ref TABLE_MAP: Arc<Mutex<HashMap<u64, Vec<ColTypes>>>> =

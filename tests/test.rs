@@ -1,6 +1,6 @@
-use boxercrab::events::Event;
-use boxercrab::events::Event::*;
-use boxercrab::mysql::ColValues::*;
+use boxercrab::ColValues::*;
+use boxercrab::Event;
+use boxercrab::Event::*;
 
 #[test]
 fn test_stop() {
@@ -33,7 +33,7 @@ fn test_rotate() {
 
 #[test]
 fn test_intvar() {
-    use boxercrab::events::IntVarEventType;
+    use boxercrab::IntVarEventType;
     let input = include_bytes!("events/05_intvar/log.bin");
     let (remain, output) = Event::from_bytes(input).unwrap();
     assert_eq!(remain.len(), 0);
@@ -62,7 +62,7 @@ fn test_rand() {
 
 #[test]
 fn test_user_var() {
-    use boxercrab::events::UserVarType;
+    use boxercrab::UserVarType;
 
     let input = include_bytes!("events/14_user_var/log.bin");
     let (remain, output) = Event::from_bytes(input).unwrap();
@@ -153,7 +153,7 @@ fn test_xid() {
 
 #[test]
 fn test_table_map() {
-    use boxercrab::mysql::ColTypes::*;
+    use boxercrab::ColTypes::*;
 
     // TODO need to test more column types
     let input = include_bytes!("events/19_table_map/log.bin");

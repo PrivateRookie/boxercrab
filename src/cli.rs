@@ -1,4 +1,4 @@
-use boxercrab::events::Event;
+use boxercrab::Event;
 use log::LevelFilter;
 use log4rs::{
     append::console::{ConsoleAppender, Target},

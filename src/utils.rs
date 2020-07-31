@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use nom::{
     bytes::complete::{take, take_till},
     combinator::map,
