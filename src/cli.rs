@@ -1,4 +1,4 @@
-use boxercrab::Event;
+use boxercrab::{Connection, Event};
 use log::LevelFilter;
 use log4rs::{
     append::console::{ConsoleAppender, Target},
@@ -8,6 +8,7 @@ use log4rs::{
 use std::fs::File;
 use std::io::prelude::*;
 use structopt::{clap::arg_enum, StructOpt};
+use tokio::runtime::Runtime;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "boxercrab-cli", about = "MySQL binlog tool impl with Rust")]
@@ -40,6 +41,15 @@ enum Cmd {
         /// Binlog file path
         input: String,
     },
+
+    /// Connect to a server
+    Conn {
+        /// Connection url
+        url: String,
+
+        /// client id
+        id: u32,
+    },
 }
 
 arg_enum! {
@@ -54,7 +64,7 @@ fn init_log(debug: bool) -> Handle {
     let level = if debug {
         LevelFilter::Debug
     } else {
-        LevelFilter::Info
+        LevelFilter::Warn
     };
     let stdout = ConsoleAppender::builder().target(Target::Stdout).build();
     let config = Config::builder()
@@ -149,5 +159,29 @@ fn main() {
                 }
             }
         },
+        Cmd::Conn { url, id } => {
+            let mut rt = Runtime::new().expect("unable to launch runtime");
+            rt.block_on(async {
+                let mut conn = Connection::new(url, id);
+                loop {
+                    match conn.recv().await {
+                        Ok(bytes) => match Event::parse(bytes.slice(1..).as_ref()) {
+                            Ok((_, event)) => {
+                                println!("\n{:#x?}\n", event);
+                            }
+                            Err(e) => log::error!(
+                                "failed to parse packet: {:?} due to{}",
+                                bytes.as_ref(),
+                                e
+                            ),
+                        },
+                        Err(e) => {
+                            log::error!("failed to recv packet: {}", e);
+                            break;
+                        }
+                    }
+                }
+            })
+        }
     }
 }

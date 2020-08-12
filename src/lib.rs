@@ -1,9 +1,11 @@
 #![allow(non_camel_case_types)]
 
+mod connection;
 mod events;
 mod mysql;
 mod utils;
 
+pub use connection::Connection;
 pub use events::{
     query::{QueryStatusVar, Q_FLAGS2_CODE_VAL, Q_SQL_MODE_CODE_VAL},
     rows::{ExtraData, ExtraDataFormat, Flags, Payload, Row},
