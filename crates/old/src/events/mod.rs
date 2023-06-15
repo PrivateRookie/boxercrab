@@ -613,13 +613,13 @@ fn parse_load<'a>(input: &'a [u8], header: Header) -> IResult<&'a [u8], Event> {
         le_u32, le_u32, le_u32, le_u8, le_u8, le_u32, le_u8, le_u8, le_u8, le_u8, le_u8,
     ))(input)?;
     let (i, opt_flags) = map(le_u8, |flags: u8| OptFlags {
-        dump_file: (flags >> 0) % 2 == 1,
-        opt_enclosed: (flags >> 1) % 1 == 1,
+        dump_file: (flags) % 2 == 1,
+        opt_enclosed: (flags >> 1) % 2 == 1,
         replace: (flags >> 2) % 2 == 1,
         ignore: (flags >> 3) % 2 == 1,
     })(i)?;
     let (i, empty_flags) = map(le_u8, |flags: u8| EmptyFlags {
-        field_term_empty: (flags >> 0) % 2 == 1,
+        field_term_empty: (flags) % 2 == 1,
         enclosed_empty: (flags >> 1) % 2 == 1,
         line_term_empty: (flags >> 2) % 2 == 1,
         line_start_empty: (flags >> 3) % 2 == 1,
