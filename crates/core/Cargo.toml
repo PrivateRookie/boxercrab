@@ -12,3 +12,6 @@ ser = ["serde"]
 [dependencies]
 bytes = { workspace = true }
 serde = { workspace = true, optional = true }
+thiserror = "1"
+bitflags = "2"
+sha1 = "0.10.5"

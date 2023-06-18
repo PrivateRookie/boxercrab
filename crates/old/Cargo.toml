@@ -1,6 +1,6 @@
 [package]
 authors = ["PrivateRookie <996514515@qq.com>"]
-edition = "2018"
+edition = "2021"
 name = "boxercrab-old"
 version = "0.2.0"
 
