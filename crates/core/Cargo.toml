@@ -7,11 +7,10 @@ edition = "2021"
 
 [features]
 default = []
-ser = ["serde"]
 
 [dependencies]
 bytes = { workspace = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 thiserror = "1"
 bitflags = "2"
 sha1 = "0.10.5"

@@ -2,7 +2,7 @@ use bytes::{Buf, BytesMut};
 use sha1::digest::block_buffer::Error;
 
 use crate::{
-    data::{FixInt1, FixInt2, FixInt3, VLenInt},
+    data::{Int1, Int2, Int3, VLenInt},
     parser::{Decode, ParseError},
 };
 
@@ -15,26 +15,86 @@ pub use auth::*;
 
 #[derive(Debug, Clone)]
 pub struct Packet<P> {
-    pub len: FixInt3,
-    pub seq_id: FixInt1,
+    pub len: Int3,
+    pub seq_id: Int1,
     pub payload: P,
 }
 
-pub struct S8(i8);
+#[derive(Debug, Clone)]
+pub struct CheckError;
 
-pub struct S16(i16);
+impl From<CheckError> for ParseError {
+    fn from(_: CheckError) -> Self {
+        Self::NoEnoughData
+    }
+}
 
-pub struct CheckCtx;
-pub struct EmitCtx;
+macro_rules! impl_check {
+    ($check_fn:ident, $raw_fn:ident, $ret:ty, $len:literal) => {
+        fn $check_fn(&mut self) -> Result<$ret, CheckError> {
+            if self.remaining() >= $len {
+                Ok(self.$raw_fn())
+            } else {
+                Err(CheckError)
+            }
+        }
+    };
+    ($check_fn:ident, $raw_fn:ident, $ret:ty ) => {
+        fn $check_fn(&mut self, len: usize) -> Result<$ret, CheckError> {
+            if self.remaining() >= len {
+                Ok(self.$raw_fn(len))
+            } else {
+                Err(CheckError)
+            }
+        }
+    };
+}
 
-pub trait De<Ctx, Input, Output, Error>: Sized {
-    fn go(ctx: Ctx, input: Input) -> Result<(Input, Output), Error>;
+pub trait CheckedBuf: Buf {
+    impl_check!(check_u8, get_u8, u8, 1);
+    impl_check!(check_i8, get_i8, i8, 1);
+    impl_check!(check_u16, get_u16, u16, 2);
+    impl_check!(check_u16_le, get_u16_le, u16, 2);
+    impl_check!(check_u16_ne, get_u16_ne, u16, 2);
+    impl_check!(check_i16, get_i16, i16, 2);
+    impl_check!(check_i16_le, get_i16_le, i16, 2);
+    impl_check!(check_i16_ne, get_i16_ne, i16, 2);
+    impl_check!(check_u32, get_u32, u32, 4);
+    impl_check!(check_u32_le, get_u32_le, u32, 4);
+    impl_check!(check_u32_ne, get_u32_ne, u32, 4);
+    impl_check!(check_i32, get_i32, i32, 4);
+    impl_check!(check_i32_le, get_i32_le, i32, 4);
+    impl_check!(check_i32_ne, get_i32_ne, i32, 4);
+    impl_check!(check_u64, get_u64, u64, 8);
+    impl_check!(check_u64_le, get_u64_le, u64, 8);
+    impl_check!(check_u64_ne, get_u64_ne, u64, 8);
+    impl_check!(check_i64, get_i64, i64, 8);
+    impl_check!(check_i64_le, get_i64_le, i64, 8);
+    impl_check!(check_i64_ne, get_i64_ne, i64, 8);
+    impl_check!(check_u128, get_u128, u128, 16);
+    impl_check!(check_u128_le, get_u128_le, u128, 16);
+    impl_check!(check_u128_ne, get_u128_ne, u128, 16);
+    impl_check!(check_i128, get_i128, i128, 16);
+    impl_check!(check_i128_le, get_i128_le, i128, 16);
+    impl_check!(check_i128_ne, get_i128_ne, i128, 16);
+    impl_check!(check_uint, get_uint, u64);
+    impl_check!(check_uint_le, get_uint_le, u64);
+    impl_check!(check_uint_ne, get_uint_ne, u64);
+    impl_check!(check_int, get_int, i64);
+    impl_check!(check_int_le, get_int_le, i64);
+    impl_check!(check_int_ne, get_int_ne, i64);
+}
+
+impl<T: Buf> CheckedBuf for T {}
+
+pub trait De<I: CheckedBuf, Output, Ctx = (), Error = ParseError>: Sized {
+    fn der(ctx: Ctx, input: I) -> Result<Output, Error>;
 }
 
 impl<P: Decode> Decode for Packet<P> {
     fn parse(buf: &mut BytesMut) -> Result<Self, ParseError> {
-        let len = FixInt3::parse(buf)?;
-        let seq_id = FixInt1::parse(buf)?;
+        let len = Int3::parse(buf)?;
+        let seq_id = Int1::parse(buf)?;
         let mut payload_data = buf.split_to(len.int() as usize);
         let payload = P::parse(&mut payload_data)?;
         assert!(payload_data.is_empty());
@@ -63,10 +123,7 @@ fn null_term_bytes(buf: &mut BytesMut) -> Result<BytesMut, ParseError> {
 
 fn fix_bytes(buf: &mut BytesMut, len: usize) -> Result<BytesMut, ParseError> {
     if buf.len() < len {
-        return Err(ParseError::NotEnoughData {
-            expected: len,
-            got: buf.len(),
-        });
+        return Err(ParseError::NoEnoughData);
     }
     Ok(buf.split_to(len))
 }
@@ -133,19 +190,19 @@ fn data() {
 
 #[derive(Debug, Clone)]
 pub struct OkPacket {
-    pub header: FixInt1,
+    pub header: Int1,
     pub affected_rows: VLenInt,
     pub last_insert_id: VLenInt,
-    pub status_flags: FixInt2,
-    pub warnings: FixInt2,
+    pub status_flags: Int2,
+    pub warnings: Int2,
     pub info: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct ErrPacket {
-    pub header: FixInt1,
-    pub code: FixInt2,
-    pub sql_state_marker: FixInt1,
+    pub header: Int1,
+    pub code: Int2,
+    pub sql_state_marker: Int1,
     pub sql_state: String,
     pub error_msg: String,
 }

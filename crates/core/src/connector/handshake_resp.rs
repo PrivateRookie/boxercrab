@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::{
     connector::{consume, fix_bytes, null_term_string, var_bytes, var_string},
-    data::{FixInt1, FixInt3, FixInt4},
+    data::{Int1, Int3, Int4},
     parser::Decode,
 };
 
@@ -13,28 +13,28 @@ use super::Capabilities;
 #[derive(Debug, Clone)]
 pub struct HandshakeResponse41 {
     pub caps: Capabilities,
-    pub max_packet_size: FixInt3,
-    pub charset: FixInt1,
+    pub max_packet_size: Int3,
+    pub charset: Int1,
     pub user_name: String,
     pub auth_resp: BytesMut,
     pub database: Option<String>,
     pub plugin_name: Option<String>,
     pub connect_attrs: HashMap<String, String>,
-    pub zstd_level: FixInt1,
+    pub zstd_level: Int1,
 }
 
 impl Decode for HandshakeResponse41 {
     fn parse(buf: &mut BytesMut) -> Result<Self, crate::parser::ParseError> {
-        let caps = FixInt4::parse(buf)?;
+        let caps = Int4::parse(buf)?;
         let caps = Capabilities::from_bits(caps.int()).unwrap();
-        let max_packet_size = FixInt3::parse(buf)?;
-        let charset = FixInt1::parse(buf)?;
+        let max_packet_size = Int3::parse(buf)?;
+        let charset = Int1::parse(buf)?;
         consume(buf, 23)?;
         let user_name = null_term_string(buf)?;
         let auth_resp = if caps.contains(Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
             var_bytes(buf)?
         } else {
-            let len = FixInt1::parse(buf)?.int() as usize;
+            let len = Int1::parse(buf)?.int() as usize;
             fix_bytes(buf, len)?
         };
         let database = if caps.contains(Capabilities::CLIENT_CONNECT_WITH_DB) {
@@ -49,14 +49,14 @@ impl Decode for HandshakeResponse41 {
         };
         let mut connect_attrs: HashMap<String, String> = Default::default();
         if caps.contains(Capabilities::CLIENT_CONNECT_ATTRS) {
-            let count = FixInt1::parse(buf)?.int();
+            let count = Int1::parse(buf)?.int();
             for _ in 0..count {
                 let key = var_string(buf)?;
                 let val = var_string(buf)?;
                 connect_attrs.insert(key, val);
             }
         }
-        let zstd_level = FixInt1::parse(buf)?;
+        let zstd_level = Int1::parse(buf)?;
         Ok(Self {
             caps,
             max_packet_size,

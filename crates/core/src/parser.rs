@@ -7,8 +7,8 @@ pub trait Decode: Sized {
 use thiserror::Error;
 #[derive(Debug, Clone, Error)]
 pub enum ParseError {
-    #[error("expect {expected} got {got}")]
-    NotEnoughData { expected: usize, got: usize },
+    #[error("no enough data")]
+    NoEnoughData,
     #[error("invalid utf-8 string")]
     InvalidUtf8,
     #[error("missing terminal null bytes")]

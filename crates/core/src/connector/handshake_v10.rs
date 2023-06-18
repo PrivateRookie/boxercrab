@@ -1,41 +1,41 @@
 use super::{consume, fix_bytes, null_term_string};
-use crate::data::{FixInt1, FixInt2, FixInt4};
+use crate::data::{Int1, Int2, Int4};
 use crate::parser::Decode;
 use bytes::BytesMut;
 
 #[derive(Debug, Clone)]
 pub struct HandshakeV10 {
-    pub protocol_version: FixInt1,
+    pub protocol_version: Int1,
     pub server_version: String,
-    pub thread_id: FixInt4,
+    pub thread_id: Int4,
     pub caps: Capabilities,
     /// [doc](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_character_set.html#a_protocol_character_set)
-    pub charset: FixInt1,
-    pub status: FixInt2,
+    pub charset: Int1,
+    pub status: Int2,
     pub auth_plugin_name: String,
     pub auth_plugin_data: BytesMut,
 }
 
 impl Decode for HandshakeV10 {
     fn parse(buf: &mut BytesMut) -> Result<Self, crate::parser::ParseError> {
-        let protocol_version = FixInt1::parse(buf)?;
+        let protocol_version = Int1::parse(buf)?;
         if protocol_version.int() != 10 {
             return Err(crate::parser::ParseError::InvalidData);
         }
         let server_version = null_term_string(buf)?;
-        let thread_id = FixInt4::parse(buf)?;
+        let thread_id = Int4::parse(buf)?;
         let mut auth_plugin_data = fix_bytes(buf, 8)?;
         consume(buf, 1)?;
-        let l_cap = FixInt2::parse(buf)?;
-        let charset = FixInt1::parse(buf)?;
-        let status = FixInt2::parse(buf)?;
-        let h_cap = FixInt2::parse(buf)?;
+        let l_cap = Int2::parse(buf)?;
+        let charset = Int1::parse(buf)?;
+        let status = Int2::parse(buf)?;
+        let h_cap = Int2::parse(buf)?;
 
         let mut caps = [0u8; 4];
         caps[..2].copy_from_slice(l_cap.bytes());
         caps[2..].copy_from_slice(h_cap.bytes());
         let caps = Capabilities::from_bits(u32::from_le_bytes(caps)).unwrap();
-        let auth_data_len = FixInt1::parse(buf)?.int();
+        let auth_data_len = Int1::parse(buf)?.int();
         consume(buf, 10)?;
         if auth_data_len > 0 {
             dbg!(auth_data_len);

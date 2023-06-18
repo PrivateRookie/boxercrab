@@ -1,4 +1,4 @@
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut, Bytes};
 
 use crate::{
     connector::De,
@@ -56,10 +56,7 @@ macro_rules! custom_impl {
             fn parse(buf: &mut BytesMut) -> Result<Self, ParseError> {
                 let len = buf.len();
                 if buf.len() < $len {
-                    return Err(ParseError::NotEnoughData {
-                        expected: 1,
-                        got: len,
-                    });
+                    return Err(ParseError::NoEnoughData);
                 }
                 let mut data = [0u8; $len];
                 data.copy_from_slice(&buf.split_to($len));
@@ -85,12 +82,15 @@ macro_rules! fix {
     };
 }
 
-fix!(FixInt1, 1, u8);
-fix!(FixInt2, 2, u16);
-fix!(FixInt3, 3, u32, u32::MAX >> 1);
-fix!(FixInt4, 4, u32);
-fix!(FixInt6, 6, u64, u64::MAX >> 2);
-fix!(FixInt8, 8, u64);
+fix!(Int1, 1, u8);
+fix!(Int2, 2, u16);
+fix!(Int3, 3, u32, u32::MAX >> 1);
+fix!(Int4, 4, u32);
+fix!(Int6, 6, u64, u64::MAX >> 2);
+fix!(Int8, 8, u64);
+
+
+
 
 /// variable length int
 #[derive(Default, Debug, Clone, Copy)]
@@ -126,25 +126,13 @@ impl VLenInt {
     }
 }
 
-impl De<(), BytesMut, Self, ParseError> for VLenInt {
-    fn go(ctx: (), input: BytesMut) -> Result<(BytesMut, Self), ParseError> {
-        todo!()
-    }
-}
-
 impl Decode for VLenInt {
     fn parse(buf: &mut BytesMut) -> Result<Self, ParseError> {
-        if buf.is_empty() {
-            return Err(ParseError::NotEnoughData {
-                expected: 1,
-                got: 0,
-            });
-        }
         match buf.get_u8() {
             val @ 0..=0xfb => Ok(Self(val as u64)),
             0xfc => Ok(Self(buf.get_u16_le() as u64)),
             0xfd => {
-                let i = FixInt3::parse(buf)?;
+                let i = Int3::parse(buf)?;
                 Ok(Self(i.int() as u64))
             }
             0xfe => Ok(Self(buf.get_u64_le())),
