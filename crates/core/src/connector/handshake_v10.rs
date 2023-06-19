@@ -1,8 +1,8 @@
-use super::{consume, fix_bytes, null_term_string};
-use crate::data::{Int1, Int2, Int4};
-use crate::parser::Decode;
 use bytes::BytesMut;
 
+use crate::codec::{get_null_term_str, CheckedBuf, Decode, DecodeError, Int1, Int2, Int4};
+
+/// [doc](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_v10.html)
 #[derive(Debug, Clone)]
 pub struct HandshakeV10 {
     pub protocol_version: Int1,
@@ -16,34 +16,34 @@ pub struct HandshakeV10 {
     pub auth_plugin_data: BytesMut,
 }
 
-impl Decode for HandshakeV10 {
-    fn parse(buf: &mut BytesMut) -> Result<Self, crate::parser::ParseError> {
-        let protocol_version = Int1::parse(buf)?;
+impl<I: CheckedBuf> Decode<I> for HandshakeV10 {
+    fn decode(input: &mut I) -> Result<Self, DecodeError> {
+        let protocol_version = Int1::decode(input)?;
         if protocol_version.int() != 10 {
-            return Err(crate::parser::ParseError::InvalidData);
+            return Err(DecodeError::InvalidData);
         }
-        let server_version = null_term_string(buf)?;
-        let thread_id = Int4::parse(buf)?;
-        let mut auth_plugin_data = fix_bytes(buf, 8)?;
-        consume(buf, 1)?;
-        let l_cap = Int2::parse(buf)?;
-        let charset = Int1::parse(buf)?;
-        let status = Int2::parse(buf)?;
-        let h_cap = Int2::parse(buf)?;
+        let server_version = get_null_term_str(input)?;
+        let thread_id = Int4::decode(input)?;
+        let mut auth_plugin_data = BytesMut::from_iter(input.cut_at(8)?.chunk());
+        input.consume(1)?;
+        let l_cap = Int2::decode(input)?;
+        let charset = Int1::decode(input)?;
+        let status = Int2::decode(input)?;
+        let h_cap = Int2::decode(input)?;
 
         let mut caps = [0u8; 4];
         caps[..2].copy_from_slice(l_cap.bytes());
         caps[2..].copy_from_slice(h_cap.bytes());
         let caps = Capabilities::from_bits(u32::from_le_bytes(caps)).unwrap();
-        let auth_data_len = Int1::parse(buf)?.int();
-        consume(buf, 10)?;
+        let auth_data_len = Int1::decode(input)?.int();
+        input.consume(10)?;
         if auth_data_len > 0 {
             dbg!(auth_data_len);
             let len = 13.max(auth_data_len - 8) as usize;
-            auth_plugin_data.extend_from_slice(&fix_bytes(buf, len)?);
+            auth_plugin_data.extend_from_slice(input.cut_at(len)?.chunk());
         }
         let auth_plugin_name = if caps.contains(Capabilities::CLIENT_PLUGIN_AUTH) {
-            null_term_string(buf)?
+            get_null_term_str(input)?
         } else {
             Default::default()
         };

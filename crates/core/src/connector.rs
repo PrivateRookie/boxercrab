@@ -1,18 +1,16 @@
-use bytes::{Buf, BytesMut};
-use sha1::digest::block_buffer::Error;
-
-use crate::{
-    data::{Int1, Int2, Int3, VLenInt},
-    parser::{Decode, ParseError},
+use crate::codec::{
+    CheckedBuf, Decode, DecodeError, DecodeResult, Encode, Int1, Int2, Int3, VLenInt,
 };
 
 mod handshake_v10;
+use bytes::BytesMut;
 pub use handshake_v10::*;
 mod handshake_resp;
 pub use handshake_resp::*;
 mod auth;
 pub use auth::*;
 
+/// [doc](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_packets.html#sect_protocol_basic_packets_packet)
 #[derive(Debug, Clone)]
 pub struct Packet<P> {
     pub len: Int3,
@@ -20,134 +18,36 @@ pub struct Packet<P> {
     pub payload: P,
 }
 
-#[derive(Debug, Clone)]
-pub struct CheckError;
-
-impl From<CheckError> for ParseError {
-    fn from(_: CheckError) -> Self {
-        Self::NoEnoughData
+pub fn decode_header<I: CheckedBuf>(input: &mut I) -> DecodeResult<(Int3, Int1)> {
+    let len = Int3::decode(input)?;
+    let seq_id = Int1::decode(input)?;
+    if input.remaining() < len.int() as usize {
+        return Err(DecodeError::NoEnoughData);
     }
+    Ok((len, seq_id))
 }
 
-macro_rules! impl_check {
-    ($check_fn:ident, $raw_fn:ident, $ret:ty, $len:literal) => {
-        fn $check_fn(&mut self) -> Result<$ret, CheckError> {
-            if self.remaining() >= $len {
-                Ok(self.$raw_fn())
-            } else {
-                Err(CheckError)
-            }
-        }
-    };
-    ($check_fn:ident, $raw_fn:ident, $ret:ty ) => {
-        fn $check_fn(&mut self, len: usize) -> Result<$ret, CheckError> {
-            if self.remaining() >= len {
-                Ok(self.$raw_fn(len))
-            } else {
-                Err(CheckError)
-            }
-        }
-    };
+pub fn decode_packet<I: CheckedBuf, P: Decode<I>>(input: &mut I) -> DecodeResult<Packet<P>> {
+    let (len, seq_id) = decode_header(input)?;
+    let payload = P::decode(input)?;
+    Ok(Packet {
+        len,
+        seq_id,
+        payload,
+    })
 }
 
-pub trait CheckedBuf: Buf {
-    impl_check!(check_u8, get_u8, u8, 1);
-    impl_check!(check_i8, get_i8, i8, 1);
-    impl_check!(check_u16, get_u16, u16, 2);
-    impl_check!(check_u16_le, get_u16_le, u16, 2);
-    impl_check!(check_u16_ne, get_u16_ne, u16, 2);
-    impl_check!(check_i16, get_i16, i16, 2);
-    impl_check!(check_i16_le, get_i16_le, i16, 2);
-    impl_check!(check_i16_ne, get_i16_ne, i16, 2);
-    impl_check!(check_u32, get_u32, u32, 4);
-    impl_check!(check_u32_le, get_u32_le, u32, 4);
-    impl_check!(check_u32_ne, get_u32_ne, u32, 4);
-    impl_check!(check_i32, get_i32, i32, 4);
-    impl_check!(check_i32_le, get_i32_le, i32, 4);
-    impl_check!(check_i32_ne, get_i32_ne, i32, 4);
-    impl_check!(check_u64, get_u64, u64, 8);
-    impl_check!(check_u64_le, get_u64_le, u64, 8);
-    impl_check!(check_u64_ne, get_u64_ne, u64, 8);
-    impl_check!(check_i64, get_i64, i64, 8);
-    impl_check!(check_i64_le, get_i64_le, i64, 8);
-    impl_check!(check_i64_ne, get_i64_ne, i64, 8);
-    impl_check!(check_u128, get_u128, u128, 16);
-    impl_check!(check_u128_le, get_u128_le, u128, 16);
-    impl_check!(check_u128_ne, get_u128_ne, u128, 16);
-    impl_check!(check_i128, get_i128, i128, 16);
-    impl_check!(check_i128_le, get_i128_le, i128, 16);
-    impl_check!(check_i128_ne, get_i128_ne, i128, 16);
-    impl_check!(check_uint, get_uint, u64);
-    impl_check!(check_uint_le, get_uint_le, u64);
-    impl_check!(check_uint_ne, get_uint_ne, u64);
-    impl_check!(check_int, get_int, i64);
-    impl_check!(check_int_le, get_int_le, i64);
-    impl_check!(check_int_ne, get_int_ne, i64);
+pub fn encode_packet<P: Encode>(seq_id: u8, payload: &P, buf: &mut BytesMut) {
+    let start = buf.len();
+    buf.extend_from_slice(&[0, 0, 0]);
+    Int1::from(seq_id).encode(buf);
+    payload.encode(buf);
+    let end = buf.len();
+    let len = end - start;
+    buf[start..(start + 3)].copy_from_slice(Int3::from(len as u32).bytes())
 }
 
-impl<T: Buf> CheckedBuf for T {}
-
-pub trait De<I: CheckedBuf, Output, Ctx = (), Error = ParseError>: Sized {
-    fn der(ctx: Ctx, input: I) -> Result<Output, Error>;
-}
-
-impl<P: Decode> Decode for Packet<P> {
-    fn parse(buf: &mut BytesMut) -> Result<Self, ParseError> {
-        let len = Int3::parse(buf)?;
-        let seq_id = Int1::parse(buf)?;
-        let mut payload_data = buf.split_to(len.int() as usize);
-        let payload = P::parse(&mut payload_data)?;
-        assert!(payload_data.is_empty());
-        Ok(Self {
-            len,
-            seq_id,
-            payload,
-        })
-    }
-}
-
-fn null_term_string(buf: &mut BytesMut) -> Result<String, ParseError> {
-    let raw = &null_term_bytes(buf)?;
-    String::from_utf8(raw.to_vec()).map_err(|_| ParseError::InvalidUtf8)
-}
-
-fn null_term_bytes(buf: &mut BytesMut) -> Result<BytesMut, ParseError> {
-    let pos = buf
-        .iter()
-        .position(|b| *b == b'\0')
-        .ok_or(ParseError::MissingNull)?;
-    let bytes = buf.split_to(pos);
-    buf.advance(1);
-    Ok(bytes)
-}
-
-fn fix_bytes(buf: &mut BytesMut, len: usize) -> Result<BytesMut, ParseError> {
-    if buf.len() < len {
-        return Err(ParseError::NoEnoughData);
-    }
-    Ok(buf.split_to(len))
-}
-
-fn var_bytes(buf: &mut BytesMut) -> Result<BytesMut, ParseError> {
-    let len = VLenInt::parse(buf)?.0 as usize;
-    fix_bytes(buf, len)
-}
-
-fn consume(buf: &mut BytesMut, len: usize) -> Result<(), ParseError> {
-    fix_bytes(buf, len)?;
-    Ok(())
-}
-
-fn fix_string(buf: &mut BytesMut, len: usize) -> Result<String, ParseError> {
-    let raw = fix_bytes(buf, len)?.to_vec();
-    String::from_utf8(raw).map_err(|_| ParseError::InvalidUtf8)
-}
-
-fn var_string(buf: &mut BytesMut) -> Result<String, ParseError> {
-    let len = VLenInt::parse(buf)?.0 as usize;
-    fix_string(buf, len)
-}
-
+#[allow(unused_macros)]
 macro_rules! hex {
     ($data:literal) => {{
         let buf = bytes::BytesMut::from_iter(
