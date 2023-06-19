@@ -38,7 +38,6 @@ impl<I: CheckedBuf> Decode<I> for HandshakeV10 {
         let auth_data_len = Int1::decode(input)?.int();
         input.consume(10)?;
         if auth_data_len > 0 {
-            dbg!(auth_data_len);
             let len = 13.max(auth_data_len - 8) as usize;
             auth_plugin_data.extend_from_slice(input.cut_at(len)?.chunk());
         }

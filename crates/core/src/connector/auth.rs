@@ -15,25 +15,17 @@ impl AuthSwitchReq {
     pub const STATUS: u8 = 254;
 }
 
-impl<I: CheckedBuf> Decode<I> for Packet<AuthSwitchReq> {
-    fn decode(input: &mut I) -> Result<Packet<AuthSwitchReq>, DecodeError> {
-        let (len, seq_id) = decode_header(input)?;
-        let r1 = input.remaining();
+impl<I: CheckedBuf> Decode<I> for AuthSwitchReq {
+    fn decode(input: &mut I) -> Result<AuthSwitchReq, DecodeError> {
         let tag = input.check_u8()?;
         if tag != 0xfe {
             return Err(DecodeError::InvalidData);
         }
         let plugin_name = get_null_term_str(input)?;
-        let r2 = input.remaining();
-        let remain = len.int() as usize - (r1 - r2);
-        let plugin_data = BytesMut::from_iter(input.cut_at(remain)?.chunk());
-        Ok(Packet {
-            len,
-            seq_id,
-            payload: AuthSwitchReq {
-                plugin_name,
-                plugin_data,
-            },
+        let plugin_data = BytesMut::from_iter(input.cut_at(input.remaining())?.chunk());
+        Ok(AuthSwitchReq {
+            plugin_name,
+            plugin_data,
         })
     }
 }

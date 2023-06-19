@@ -144,7 +144,7 @@ macro_rules! from_prime {
             fn from(value: $t) -> Self {
                 assert!(value <= $max);
                 let mut val = Self::default();
-                val.0.copy_from_slice(&value.to_le_bytes()[..$idx]);
+                val.0.copy_from_slice(&value.to_le_bytes()[..($idx+1)]);
                 val
             }
         }

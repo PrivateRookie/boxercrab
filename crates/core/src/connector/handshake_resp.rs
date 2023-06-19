@@ -13,7 +13,7 @@ use super::Capabilities;
 #[derive(Debug, Clone)]
 pub struct HandshakeResponse41 {
     pub caps: Capabilities,
-    pub max_packet_size: Int3,
+    pub max_packet_size: Int4,
     pub charset: Int1,
     pub user_name: String,
     pub auth_resp: BytesMut,
@@ -27,7 +27,7 @@ impl<I: CheckedBuf> Decode<I> for HandshakeResponse41 {
     fn decode(input: &mut I) -> Result<Self, DecodeError> {
         let caps = Int4::decode(input)?;
         let caps = Capabilities::from_bits(caps.int()).unwrap();
-        let max_packet_size = Int3::decode(input)?;
+        let max_packet_size = Int4::decode(input)?;
         let charset = Int1::decode(input)?;
         input.consume(23)?;
         let user_name = get_null_term_str(input)?;
@@ -93,7 +93,7 @@ impl Encode for HandshakeResponse41 {
             put_null_term_str(self.database.as_deref().unwrap_or("default"), buf);
         }
         if self.caps.contains(Capabilities::CLIENT_PLUGIN_AUTH) {
-            put_null_term_str("mysql_native_password", buf);
+            put_null_term_str(self.plugin_name.as_deref().unwrap_or_default(), buf);
         }
         if self.caps.contains(Capabilities::CLIENT_CONNECT_ATTRS) {
             let len = VLenInt::new(self.connect_attrs.len() as u64);
@@ -105,4 +105,21 @@ impl Encode for HandshakeResponse41 {
         }
         self.zstd_level.encode(buf);
     }
+}
+#[allow(unused_macros)]
+macro_rules! hex {
+    ($data:literal) => {{
+        let buf = bytes::BytesMut::from_iter(
+            (0..$data.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&$data[i..i + 2], 16).unwrap()),
+        );
+        buf
+    }};
+}
+
+#[test]
+fn d() {
+    let mut data = hex!("020000004500006830124000800600007f0000017f000001eafc0cea50b960729e57a7da501820fa13b300004000000101022800000001ff00000000000000000000000000000000000000000000007465737400006d7973716c5f6e61746976655f70617373776f72640000");
+    dbg!(HandshakeResponse41::decode(&mut data));
 }

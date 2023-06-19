@@ -38,15 +38,14 @@ pub fn decode_packet<I: CheckedBuf, P: Decode<I>>(input: &mut I) -> DecodeResult
 }
 
 pub fn encode_packet<P: Encode>(seq_id: u8, payload: &P, buf: &mut BytesMut) {
-    let start = buf.len();
     buf.extend_from_slice(&[0, 0, 0]);
     Int1::from(seq_id).encode(buf);
+    let start = buf.len();
     payload.encode(buf);
     let end = buf.len();
     let len = end - start;
     buf[start..(start + 3)].copy_from_slice(Int3::from(len as u32).bytes())
 }
-
 #[allow(unused_macros)]
 macro_rules! hex {
     ($data:literal) => {{

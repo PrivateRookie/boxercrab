@@ -4,60 +4,90 @@ use std::{
 };
 
 use boxercrab::{
-    codec::{Decode, DecodeError, DecodeResult, Int1, Int3},
+    codec::{CheckedBuf, Decode, DecodeError, DecodeResult, Encode, Int1, Int3, Int4},
     connector::{
-        decode_packet, encode_packet, Capabilities, HandshakeResponse41, HandshakeV10, Packet,
+        decode_packet, encode_packet, AuthSwitchReq, Capabilities, HandshakeResponse41,
+        HandshakeV10, Packet,
     },
 };
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 
 fn main() {
-    let mut stream = TcpStream::connect("127.0.0.1:3306").unwrap();
-    let mut conn = Conn::new();
-    let handshake: Packet<HandshakeV10> = conn.read(&mut stream);
+    let stream = TcpStream::connect("127.0.0.1:3306").unwrap();
+    let mut socket = MysqlSocket::new(stream);
+    let handshake: Packet<HandshakeV10> = socket.read_packet().unwrap();
+    println!("{handshake:?}");
+    let resp = HandshakeResponse41 {
+        caps: Capabilities::CLIENT_LONG_PASSWORD
+            | Capabilities::CLIENT_PROTOCOL_41
+            | Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
+            | Capabilities::CLIENT_PLUGIN_AUTH,
+        max_packet_size: Int4::from(1 << 16),
+        charset: Int1::from(255),
+        user_name: "test".into(),
+        auth_resp: BytesMut::new(),
+        database: None,
+        plugin_name: Some("mysql_native_password".into()),
+        connect_attrs: Default::default(),
+        zstd_level: Int1::from(0),
+    };
+    socket.write_packet(1, &resp).unwrap();
+    let switch_req: Packet<AuthSwitchReq> = socket.read_packet().unwrap();
+    println!("{switch_req:?}");
+    std::thread::sleep(std::time::Duration::from_secs(10));
 }
 
-pub struct Conn {
-    data: BytesMut,
-    buf: [u8; 4096],
+pub struct MysqlSocket {
+    stream: TcpStream,
 }
 
-impl Conn {
-    pub fn new() -> Self {
-        Self {
-            data: Default::default(),
-            buf: [0; 4096],
-        }
+#[derive(Debug)]
+pub enum PacketError {
+    IOError(std::io::Error),
+    Decode(DecodeError),
+}
+
+impl From<std::io::Error> for PacketError {
+    fn from(value: std::io::Error) -> Self {
+        Self::IOError(value)
+    }
+}
+
+impl From<DecodeError> for PacketError {
+    fn from(value: DecodeError) -> Self {
+        Self::Decode(value)
+    }
+}
+
+impl MysqlSocket {
+    pub fn new(stream: TcpStream) -> Self {
+        Self { stream }
     }
 
-    pub fn read<R: Read, P: Decode<BytesMut>>(&mut self, stream: &mut R) -> Packet<P> {
-        let packet = loop {
-            let num = stream.read(&mut self.buf).unwrap();
-            self.data.copy_from_slice(&self.buf[..num]);
-            let maybe: DecodeResult<Packet<P>> = decode_packet(&mut self.data);
-            if let Err(DecodeError::NoEnoughData) = maybe {
-                continue;
-            }
-            break maybe.unwrap();
-        };
-        packet
+    pub fn read_packet<P: Decode<BytesMut>>(&mut self) -> Result<Packet<P>, PacketError> {
+        let mut buf = BytesMut::new();
+        buf.resize(4, 0);
+        self.stream.read_exact(&mut buf)?;
+        let len = Int3::decode(&mut buf)?;
+        let seq_id = Int1::decode(&mut buf)?;
+        let mut buf = BytesMut::with_capacity(len.int() as usize);
+        buf.resize(len.int() as usize, 0);
+        self.stream.read_exact(&mut buf)?;
+        let payload = P::decode(&mut buf)?;
+        Ok(Packet {
+            len,
+            seq_id,
+            payload,
+        })
+    }
+
+    pub fn write_packet<P: Encode>(
+        &mut self,
+        seq_id: u8,
+        payload: &P,
+    ) -> Result<(), std::io::Error> {
+        let mut buf = BytesMut::new();
+        encode_packet(seq_id, payload, &mut buf);
+        self.stream.write_all(&buf)
     }
 }
-
-// let resp = HandshakeResponse41 {
-//     caps: Capabilities::CLIENT_LONG_PASSWORD
-//         | Capabilities::CLIENT_PROTOCOL_41
-//         | Capabilities::CLIENT_PLUGIN_AUTH
-//         | Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
-//     max_packet_size: Int3::from(1 << 16),
-//     charset: Int1::from(255),
-//     user_name: "test".into(),
-//     auth_resp: BytesMut::new(),
-//     database: None,
-//     plugin_name: Some("mysql_native_password".into()),
-//     connect_attrs: Default::default(),
-//     zstd_level: Int1::from(0),
-// };
-// let mut r = BytesMut::new();
-// encode_packet(1, &resp, &mut r);
-// stream.write_all(&r).unwrap();
