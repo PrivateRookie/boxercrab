@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::codec::{
     get_null_term_str, get_var_bytes, get_var_str, put_null_term_str, put_var_bytes, put_var_str,
-    CheckedBuf, Decode, DecodeError, Encode, Int1, Int3, Int4, VLenInt,
+    CheckedBuf, Decode, DecodeError, Encode, Int1, Int4, VLenInt,
 };
 
 use super::Capabilities;
@@ -116,10 +116,4 @@ macro_rules! hex {
         );
         buf
     }};
-}
-
-#[test]
-fn d() {
-    let mut data = hex!("020000004500006830124000800600007f0000017f000001eafc0cea50b960729e57a7da501820fa13b300004000000101022800000001ff00000000000000000000000000000000000000000000007465737400006d7973716c5f6e61746976655f70617373776f72640000");
-    dbg!(HandshakeResponse41::decode(&mut data));
 }

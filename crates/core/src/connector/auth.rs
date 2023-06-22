@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 
-use crate::codec::{get_null_term_str, CheckedBuf, Decode, DecodeError};
+use crate::codec::{get_null_term_str, CheckedBuf, Decode, DecodeError, Encode};
 
 use super::{decode_header, Packet};
 
@@ -22,7 +22,11 @@ impl<I: CheckedBuf> Decode<I> for AuthSwitchReq {
             return Err(DecodeError::InvalidData);
         }
         let plugin_name = get_null_term_str(input)?;
-        let plugin_data = BytesMut::from_iter(input.cut_at(input.remaining())?.chunk());
+        let plugin_data = if input.has_remaining() {
+            BytesMut::from_iter(input.cut_at(input.remaining() - 1)?.chunk())
+        } else {
+            BytesMut::new()
+        };
         Ok(AuthSwitchReq {
             plugin_name,
             plugin_data,
@@ -45,5 +49,11 @@ impl<I: CheckedBuf> Decode<I> for Packet<AuthSwitchResp> {
             seq_id,
             payload: AuthSwitchResp { data },
         })
+    }
+}
+
+impl Encode for AuthSwitchResp {
+    fn encode(&self, buf: &mut BytesMut) {
+        buf.extend_from_slice(&self.data);
     }
 }
