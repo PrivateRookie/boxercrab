@@ -1,6 +1,7 @@
-use bytes::{Buf, BufMut};
-use bytes::{Bytes, BytesMut};
+use bytes::BufMut;
+use bytes::BytesMut;
 
+use parse_tool::{CheckError, InputBuf};
 use thiserror::Error;
 #[derive(Debug, Clone, Error)]
 pub enum DecodeError {
@@ -14,115 +15,13 @@ pub enum DecodeError {
     InvalidData,
 }
 
-#[derive(Debug, Clone)]
-pub struct CheckError;
-
 impl From<CheckError> for DecodeError {
     fn from(_: CheckError) -> Self {
         Self::NoEnoughData
     }
 }
 
-macro_rules! impl_check {
-    ($check_fn:ident, $raw_fn:ident, $ret:ty, $len:literal) => {
-        fn $check_fn(&mut self) -> Result<$ret, CheckError> {
-            if self.remaining() >= $len {
-                Ok(self.$raw_fn())
-            } else {
-                Err(CheckError)
-            }
-        }
-    };
-    ($check_fn:ident, $raw_fn:ident, $ret:ty ) => {
-        fn $check_fn(&mut self, len: usize) -> Result<$ret, CheckError> {
-            if self.remaining() >= len {
-                Ok(self.$raw_fn(len))
-            } else {
-                Err(CheckError)
-            }
-        }
-    };
-}
-
-pub trait CheckedBuf: Buf + Sized {
-    impl_check!(check_u8, get_u8, u8, 1);
-    impl_check!(check_i8, get_i8, i8, 1);
-    impl_check!(check_u16, get_u16, u16, 2);
-    impl_check!(check_u16_le, get_u16_le, u16, 2);
-    impl_check!(check_u16_ne, get_u16_ne, u16, 2);
-    impl_check!(check_i16, get_i16, i16, 2);
-    impl_check!(check_i16_le, get_i16_le, i16, 2);
-    impl_check!(check_i16_ne, get_i16_ne, i16, 2);
-    impl_check!(check_u32, get_u32, u32, 4);
-    impl_check!(check_u32_le, get_u32_le, u32, 4);
-    impl_check!(check_u32_ne, get_u32_ne, u32, 4);
-    impl_check!(check_i32, get_i32, i32, 4);
-    impl_check!(check_i32_le, get_i32_le, i32, 4);
-    impl_check!(check_i32_ne, get_i32_ne, i32, 4);
-    impl_check!(check_u64, get_u64, u64, 8);
-    impl_check!(check_u64_le, get_u64_le, u64, 8);
-    impl_check!(check_u64_ne, get_u64_ne, u64, 8);
-    impl_check!(check_i64, get_i64, i64, 8);
-    impl_check!(check_i64_le, get_i64_le, i64, 8);
-    impl_check!(check_i64_ne, get_i64_ne, i64, 8);
-    impl_check!(check_u128, get_u128, u128, 16);
-    impl_check!(check_u128_le, get_u128_le, u128, 16);
-    impl_check!(check_u128_ne, get_u128_ne, u128, 16);
-    impl_check!(check_i128, get_i128, i128, 16);
-    impl_check!(check_i128_le, get_i128_le, i128, 16);
-    impl_check!(check_i128_ne, get_i128_ne, i128, 16);
-    impl_check!(check_uint, get_uint, u64);
-    impl_check!(check_uint_le, get_uint_le, u64);
-    impl_check!(check_uint_ne, get_uint_ne, u64);
-    impl_check!(check_int, get_int, i64);
-    impl_check!(check_int_le, get_int_le, i64);
-    impl_check!(check_int_ne, get_int_ne, i64);
-
-    fn consume(&mut self, len: usize) -> Result<BytesMut, CheckError> {
-        if self.remaining() < len {
-            return Err(CheckError);
-        }
-        let mut data = BytesMut::new();
-        data.resize(len, 0);
-        self.copy_to_slice(&mut data);
-        Ok(data)
-    }
-
-    /// after this operation, self contain `[at, len)`,
-    /// return part contain [0, at)
-    fn cut_at(&mut self, at: usize) -> Result<Self, CheckError>;
-}
-
-impl CheckedBuf for &[u8] {
-    fn cut_at(&mut self, at: usize) -> Result<Self, CheckError> {
-        if self.len() < at {
-            return Err(CheckError);
-        }
-        let ret = &self[..at];
-        *self = &self[at..];
-        Ok(ret)
-    }
-}
-
-impl CheckedBuf for Bytes {
-    fn cut_at(&mut self, at: usize) -> Result<Self, CheckError> {
-        if self.len() < at {
-            return Err(CheckError);
-        }
-        Ok(self.split_to(at))
-    }
-}
-
-impl CheckedBuf for BytesMut {
-    fn cut_at(&mut self, at: usize) -> Result<Self, CheckError> {
-        if self.len() < at {
-            return Err(CheckError);
-        }
-        Ok(self.split_to(at))
-    }
-}
-
-pub trait Decode<I: CheckedBuf, Output = Self, Error = DecodeError>: Sized {
+pub trait Decode<I: InputBuf, Output = Self, Error = DecodeError>: Sized {
     fn decode(input: &mut I) -> Result<Output, Error>;
 }
 pub type DecodeResult<T> = Result<T, DecodeError>;
@@ -144,7 +43,7 @@ macro_rules! from_prime {
             fn from(value: $t) -> Self {
                 assert!(value <= $max);
                 let mut val = Self::default();
-                val.0.copy_from_slice(&value.to_le_bytes()[..($idx+1)]);
+                val.0.copy_from_slice(&value.to_le_bytes()[..($idx + 1)]);
                 val
             }
         }
@@ -177,14 +76,9 @@ macro_rules! custom_impl {
             }
         }
 
-        impl<I: CheckedBuf> Decode<I> for $name {
+        impl<I: InputBuf> Decode<I> for $name {
             fn decode(input: &mut I) -> Result<Self, DecodeError> {
-                if input.remaining() < $len {
-                    return Err(DecodeError::NoEnoughData);
-                };
-                let mut buf = [0u8; $len];
-                input.copy_to_slice(&mut buf);
-                Ok(Self(buf))
+                Ok(Self(input.read_array()?))
             }
         }
 
@@ -239,16 +133,16 @@ impl VLenInt {
     }
 }
 
-impl<I: CheckedBuf> Decode<I> for VLenInt {
+impl<I: InputBuf> Decode<I> for VLenInt {
     fn decode(input: &mut I) -> Result<Self, DecodeError> {
-        match input.check_u8()? {
+        match input.read_u8_le()? {
             val @ 0..=0xfb => Ok(Self(val as u64)),
-            0xfc => Ok(Self(input.check_u16_le()? as u64)),
+            0xfc => Ok(Self(input.read_u16_le()? as u64)),
             0xfd => {
                 let i = Int3::decode(input)?;
                 Ok(Self(i.int() as u64))
             }
-            0xfe => Ok(Self(input.check_u64_le()?)),
+            0xfe => Ok(Self(input.read_u64_le()?)),
             0xff => Err(DecodeError::InvalidData),
         }
     }
@@ -274,14 +168,14 @@ impl Encode for VLenInt {
     }
 }
 
-pub fn get_null_term_bytes<I: CheckedBuf>(input: &mut I) -> Result<I, DecodeError> {
+pub fn get_null_term_bytes<I: InputBuf>(input: &mut I) -> Result<Vec<u8>, DecodeError> {
     let pos = input
-        .chunk()
+        .slice()
         .iter()
         .position(|b| *b == b'\0')
         .ok_or(DecodeError::MissingNull)?;
-    let data = input.cut_at(pos)?;
-    input.consume(1)?;
+    let data = input.read_vec(pos)?;
+    input.jump_to(1)?;
     Ok(data)
 }
 
@@ -290,9 +184,9 @@ pub fn put_null_term_bytes(input: impl AsRef<[u8]>, buf: &mut BytesMut) {
     buf.put_u8(b'\0');
 }
 
-pub fn get_var_bytes<I: CheckedBuf>(input: &mut I) -> Result<I, DecodeError> {
+pub fn get_var_bytes<I: InputBuf>(input: &mut I) -> Result<Vec<u8>, DecodeError> {
     let len = VLenInt::decode(input)?.0 as usize;
-    let data = input.cut_at(len)?;
+    let data = input.read_vec(len)?;
     Ok(data)
 }
 
@@ -303,18 +197,18 @@ pub fn put_var_bytes(input: impl AsRef<[u8]>, buf: &mut BytesMut) {
     buf.extend_from_slice(input.as_ref());
 }
 
-pub fn get_null_term_str<I: CheckedBuf>(input: &mut I) -> Result<String, DecodeError> {
+pub fn get_null_term_str<I: InputBuf>(input: &mut I) -> Result<String, DecodeError> {
     let raw = get_null_term_bytes(input)?;
-    String::from_utf8(raw.chunk().to_vec()).map_err(|_| DecodeError::InvalidUtf8)
+    String::from_utf8(raw).map_err(|_| DecodeError::InvalidUtf8)
 }
 
 pub fn put_null_term_str(s: &str, buf: &mut BytesMut) {
     put_null_term_bytes(s.as_bytes(), buf)
 }
 
-pub fn get_var_str<I: CheckedBuf>(input: &mut I) -> Result<String, DecodeError> {
+pub fn get_var_str<I: InputBuf>(input: &mut I) -> Result<String, DecodeError> {
     let raw = get_var_bytes(input)?;
-    String::from_utf8(raw.chunk().to_vec()).map_err(|_| DecodeError::InvalidUtf8)
+    String::from_utf8(raw).map_err(|_| DecodeError::InvalidUtf8)
 }
 
 pub fn put_var_str(s: &str, buf: &mut BytesMut) {

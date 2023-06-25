@@ -7,7 +7,8 @@ use boxercrab::{
     codec::{Decode, DecodeError, Encode, Int1, Int2, Int3, Int4},
     connector::{
         encode_packet, native_password_auth, AuthSwitchReq, AuthSwitchResp, Capabilities,
-        ComBinLogDump, ComQuit, HandshakeResponse41, HandshakeV10, OkOrErr, OkPacket, Packet,
+        ComBinLogDump, ComQuery, ComQuit, HandshakeResponse41, HandshakeV10, OkOrErr, OkPacket,
+        Packet,
     },
 };
 use bytes::BytesMut;
@@ -43,11 +44,14 @@ fn main() {
     };
     socket.write_packet(3, &resp).unwrap();
     let _r: OkPacket = socket.read_packet().unwrap().payload;
+    let query: ComQuery = "set @master_binlog_checksum= @@global.binlog_checksum".into();
+    socket.write_packet(0, &query).unwrap();
+    let _r: OkPacket = socket.read_packet().unwrap().payload;
     let dump = ComBinLogDump {
-        pos: Int4::from(126),
+        pos: Int4::from(824),
         flags: Int2::from(1),
         server_id: Int4::from(100),
-        filename: "binlog.000004".into(),
+        filename: " binlog.000003".into(),
     };
     socket.write_packet(0, &dump).unwrap();
     let oe: OkOrErr = socket.read_packet().unwrap().payload;

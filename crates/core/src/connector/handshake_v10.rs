@@ -1,6 +1,7 @@
 use bytes::BytesMut;
+use parse_tool::InputBuf;
 
-use crate::codec::{get_null_term_str, CheckedBuf, Decode, DecodeError, Int1, Int2, Int4};
+use crate::codec::{get_null_term_str, Decode, DecodeError, Int1, Int2, Int4};
 
 /// [doc](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_v10.html)
 #[derive(Debug, Clone)]
@@ -16,7 +17,7 @@ pub struct HandshakeV10 {
     pub auth_plugin_data: BytesMut,
 }
 
-impl<I: CheckedBuf> Decode<I> for HandshakeV10 {
+impl<I: InputBuf> Decode<I> for HandshakeV10 {
     fn decode(input: &mut I) -> Result<Self, DecodeError> {
         let protocol_version = Int1::decode(input)?;
         if protocol_version.int() != 10 {
@@ -24,8 +25,8 @@ impl<I: CheckedBuf> Decode<I> for HandshakeV10 {
         }
         let server_version = get_null_term_str(input)?;
         let thread_id = Int4::decode(input)?;
-        let mut auth_plugin_data = BytesMut::from_iter(input.cut_at(8)?.chunk());
-        input.consume(1)?;
+        let mut auth_plugin_data = BytesMut::from_iter(input.read_vec(8)?);
+        input.read_vec(1)?;
         let l_cap = Int2::decode(input)?;
         let charset = Int1::decode(input)?;
         let status = Int2::decode(input)?;
@@ -36,10 +37,10 @@ impl<I: CheckedBuf> Decode<I> for HandshakeV10 {
         caps[2..].copy_from_slice(h_cap.bytes());
         let caps = Capabilities::from_bits(u32::from_le_bytes(caps)).unwrap();
         let auth_data_len = Int1::decode(input)?.int();
-        input.consume(10)?;
+        input.read_vec(10)?;
         if auth_data_len > 0 {
             let len = 13.max(auth_data_len - 8) as usize;
-            auth_plugin_data.extend_from_slice(input.cut_at(len)?.chunk());
+            auth_plugin_data.extend_from_slice(&input.read_vec(len)?);
         }
         let auth_plugin_name = if caps.contains(Capabilities::CLIENT_PLUGIN_AUTH) {
             get_null_term_str(input)?

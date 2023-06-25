@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use bytes::BytesMut;
+use parse_tool::InputBuf;
 
 use crate::codec::{
     get_null_term_str, get_var_bytes, get_var_str, put_null_term_str, put_var_bytes, put_var_str,
-    CheckedBuf, Decode, DecodeError, Encode, Int1, Int4, VLenInt,
+    Decode, DecodeError, Encode, Int1, Int4, VLenInt,
 };
 
 use super::Capabilities;
@@ -23,21 +24,21 @@ pub struct HandshakeResponse41 {
     pub zstd_level: Int1,
 }
 
-impl<I: CheckedBuf> Decode<I> for HandshakeResponse41 {
+impl<I: InputBuf> Decode<I> for HandshakeResponse41 {
     fn decode(input: &mut I) -> Result<Self, DecodeError> {
         let caps = Int4::decode(input)?;
         let caps = Capabilities::from_bits(caps.int()).unwrap();
         let max_packet_size = Int4::decode(input)?;
         let charset = Int1::decode(input)?;
-        input.consume(23)?;
+        input.read_vec(23)?;
         let user_name = get_null_term_str(input)?;
         let auth_resp = if caps.contains(Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
             get_var_bytes(input)?
         } else {
             let len = Int1::decode(input)?.int() as usize;
-            input.cut_at(len)?
+            input.read_vec(len)?
         };
-        let auth_resp = BytesMut::from_iter(auth_resp.chunk());
+        let auth_resp = BytesMut::from_iter(auth_resp);
         let database = if caps.contains(Capabilities::CLIENT_CONNECT_WITH_DB) {
             Some(get_null_term_str(input)?)
         } else {

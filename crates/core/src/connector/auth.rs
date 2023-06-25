@@ -1,6 +1,7 @@
 use bytes::BytesMut;
+use parse_tool::InputBuf;
 
-use crate::codec::{get_null_term_str, CheckedBuf, Decode, DecodeError, Encode};
+use crate::codec::{get_null_term_str, Decode, DecodeError, Encode};
 
 use super::{decode_header, Packet};
 
@@ -15,15 +16,15 @@ impl AuthSwitchReq {
     pub const STATUS: u8 = 254;
 }
 
-impl<I: CheckedBuf> Decode<I> for AuthSwitchReq {
+impl<I: InputBuf> Decode<I> for AuthSwitchReq {
     fn decode(input: &mut I) -> Result<AuthSwitchReq, DecodeError> {
-        let tag = input.check_u8()?;
+        let tag = input.read_u8_le()?;
         if tag != 0xfe {
             return Err(DecodeError::InvalidData);
         }
         let plugin_name = get_null_term_str(input)?;
-        let plugin_data = if input.has_remaining() {
-            BytesMut::from_iter(input.cut_at(input.remaining() - 1)?.chunk())
+        let plugin_data = if input.left() > 0 {
+            BytesMut::from_iter(input.read_vec(input.left() - 1)?)
         } else {
             BytesMut::new()
         };
@@ -40,10 +41,11 @@ pub struct AuthSwitchResp {
     pub data: BytesMut,
 }
 
-impl<I: CheckedBuf> Decode<I> for Packet<AuthSwitchResp> {
+impl<I: InputBuf> Decode<I> for Packet<AuthSwitchResp> {
     fn decode(input: &mut I) -> Result<Self, DecodeError> {
         let (len, seq_id) = decode_header(input)?;
-        let data = input.consume(len.int() as usize)?;
+        let data = input.read_vec(len.int() as usize)?;
+        let data = BytesMut::from_iter(data);
         Ok(Packet {
             len,
             seq_id,
