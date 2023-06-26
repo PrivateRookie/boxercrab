@@ -1,4 +1,7 @@
-use crate::codec::{Decode, DecodeError, DecodeResult, Encode, Int1, Int2, Int3, Int4, VLenInt};
+use crate::codec::{
+    get_var_bytes, get_var_str, Decode, DecodeError, DecodeResult, Encode, Int1, Int2, Int3, Int4,
+    VLenInt,
+};
 
 mod handshake_v10;
 use bytes::{BufMut, BytesMut};
@@ -45,6 +48,7 @@ pub fn encode_packet<P: Encode>(seq_id: u8, payload: &P, buf: &mut BytesMut) {
     let len = end - start - 4;
     buf[start..(start + 3)].copy_from_slice(Int3::from(len as u32).bytes())
 }
+
 #[allow(unused_macros)]
 macro_rules! hex {
     ($data:literal) => {{
@@ -85,6 +89,16 @@ pub struct OkPacket {
     pub status_flags: Int2,
     pub warnings: Int2,
     pub info: String,
+}
+
+impl OkPacket {
+    pub fn is_ok(&self) -> bool {
+        self.header.int() == 0x00
+    }
+
+    pub fn is_eof(&self) -> bool {
+        self.header.int() == 0xfe
+    }
 }
 
 impl<I: InputBuf> Decode<I> for OkPacket {
@@ -177,6 +191,78 @@ impl<T: ToString> From<T> for ComQuery {
         Self {
             query: value.to_string(),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TextResultSet {
+    pub column_count: VLenInt,
+    pub col_defs: Vec<ColDef>,
+    pub rows: Vec<TextResult>
+}
+
+/// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response.html
+#[derive(Debug, Clone)]
+pub struct TextResult {
+    pub columns: Vec<Vec<u8>>,
+}
+
+impl<I: InputBuf> Decode<I> for TextResult {
+    fn decode(input: &mut I) -> Result<Self, DecodeError> {
+        let mut columns = vec![];
+        while input.left() > 0 {
+            let col = get_var_bytes(input)?;
+            columns.push(col);
+        }
+        Ok(Self { columns })
+    }
+}
+
+/// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_com_query_response_text_resultset_column_definition.html
+#[derive(Debug, Clone)]
+pub struct ColDef {
+    pub catalog: String,
+    pub schema: String,
+    pub table: String,
+    pub original_table: String,
+    pub name: String,
+    pub original_name: String,
+    pub length_of_fixed_length_fields: VLenInt,
+    pub charset: Int2,
+    pub column_length: Int4,
+    pub ty: Int1,
+    pub flags: Int2,
+    pub decimals: Int1,
+}
+
+impl<I: InputBuf> Decode<I> for ColDef {
+    fn decode(input: &mut I) -> Result<Self, DecodeError> {
+        let catalog = get_var_str(input)?;
+        let schema = get_var_str(input)?;
+        let table = get_var_str(input)?;
+        let original_table = get_var_str(input)?;
+        let name = get_var_str(input)?;
+        let original_name = get_var_str(input)?;
+        let length_of_fixed_length_fields = VLenInt::decode(input)?;
+        let charset = Int2::decode(input)?;
+        let column_length = Int4::decode(input)?;
+        let ty = Int1::decode(input)?;
+        let flags = Int2::decode(input)?;
+        let decimals = Int1::decode(input)?;
+        Ok(Self {
+            catalog,
+            schema,
+            table,
+            original_table,
+            name,
+            original_name,
+            length_of_fixed_length_fields,
+            charset,
+            column_length,
+            ty,
+            flags,
+            decimals,
+        })
     }
 }
 

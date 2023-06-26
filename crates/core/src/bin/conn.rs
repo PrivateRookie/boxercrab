@@ -4,11 +4,11 @@ use std::{
 };
 
 use boxercrab::{
-    codec::{Decode, DecodeError, Encode, Int1, Int2, Int3, Int4},
+    codec::{Decode, DecodeError, Encode, Int1, Int2, Int3, Int4, VLenInt},
     connector::{
-        encode_packet, native_password_auth, AuthSwitchReq, AuthSwitchResp, Capabilities,
+        encode_packet, native_password_auth, AuthSwitchReq, AuthSwitchResp, Capabilities, ColDef,
         ComBinLogDump, ComQuery, ComQuit, HandshakeResponse41, HandshakeV10, OkOrErr, OkPacket,
-        Packet,
+        Packet, TextResult, TextResultSet,
     },
 };
 use bytes::BytesMut;
@@ -23,6 +23,7 @@ fn main() {
             | Capabilities::CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA
             | Capabilities::CLIENT_RESERVED
             | Capabilities::CLIENT_RESERVED2
+            | Capabilities::CLIENT_DEPRECATE_EOF
             | Capabilities::CLIENT_PLUGIN_AUTH,
         max_packet_size: Int4::from(1 << 24),
         charset: Int1::from(255),
@@ -47,16 +48,28 @@ fn main() {
     let query: ComQuery = "set @master_binlog_checksum= @@global.binlog_checksum".into();
     socket.write_packet(0, &query).unwrap();
     let _r: OkPacket = socket.read_packet().unwrap().payload;
+    let query: ComQuery = "show master status".into();
+    socket.write_packet(0, &query).unwrap();
+    let result = socket.read_text_result_set().unwrap();
+    let file = String::from_utf8(result.rows[0].columns[0].clone()).unwrap();
+    let pos: u32 = String::from_utf8(result.rows[0].columns[1].clone())
+        .unwrap()
+        .parse()
+        .unwrap();
+    println!("{file} {pos}");
+    // let _r: OkPacket = socket.read_packet().unwrap().payload;
     let dump = ComBinLogDump {
-        pos: Int4::from(824),
-        flags: Int2::from(1),
+        pos: Int4::from(pos),
+        flags: Int2::from(0),
         server_id: Int4::from(100),
-        filename: " binlog.000003".into(),
+        filename: file,
     };
     socket.write_packet(0, &dump).unwrap();
-    let oe: OkOrErr = socket.read_packet().unwrap().payload;
-    println!("{oe:?}");
-    std::thread::sleep(std::time::Duration::from_secs(10));
+    loop {
+        let buf: Vec<u8> = socket.read_packet().unwrap().payload;
+        println!("{buf:x?}");
+    }
+    // println!("{oe:?}");
 }
 
 pub struct MysqlSocket {
@@ -100,6 +113,31 @@ impl MysqlSocket {
             len,
             seq_id,
             payload,
+        })
+    }
+
+    pub fn read_text_result_set(&mut self) -> Result<TextResultSet, PacketError> {
+        let column_count: VLenInt = self.read_packet()?.payload;
+        let mut col_defs = vec![];
+        for _ in 0..(column_count.int() as usize) {
+            let col_def: ColDef = self.read_packet()?.payload;
+            col_defs.push(col_def);
+        }
+        let mut rows = vec![];
+        loop {
+            let buf: Vec<u8> = self.read_packet()?.payload;
+            let mut buf = BytesMut::from_iter(buf);
+            if buf.first() == Some(&0xfe) && buf.len() < 9 {
+                let _ = OkPacket::decode(&mut buf).unwrap();
+                break;
+            }
+            let row = TextResult::decode(&mut buf).unwrap();
+            rows.push(row);
+        }
+        Ok(TextResultSet {
+            column_count,
+            col_defs,
+            rows,
         })
     }
 

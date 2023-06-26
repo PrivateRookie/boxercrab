@@ -30,6 +30,12 @@ pub trait Encode {
     fn encode(&self, buf: &mut BytesMut);
 }
 
+impl<I: InputBuf> Decode<I> for Vec<u8> {
+    fn decode(input: &mut I) -> Result<Self, DecodeError> {
+        Ok(input.read_to_end())
+    }
+}
+
 macro_rules! from_prime {
     ($t:ty, $name:ident) => {
         impl From<$t> for $name {

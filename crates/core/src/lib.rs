@@ -1,5 +1,6 @@
-pub mod connector;
 pub mod codec;
+pub mod connector;
+pub mod binlog;
 
 #[allow(unused_macros)]
 macro_rules! hex {
