@@ -7,10 +7,11 @@ edition = "2021"
 
 [features]
 default = []
+serde = ["dep:serde"]
 
 [dependencies]
 bytes = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, optional = true }
 parse-tool = { git = "https://github.com/PrivateRookie/parse-tool" }
 thiserror = "1"
 bitflags = "2"
